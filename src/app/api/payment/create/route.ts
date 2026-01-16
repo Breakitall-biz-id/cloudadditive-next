@@ -24,19 +24,40 @@ export async function POST(request: NextRequest) {
         // Generate unique order ID
         const orderId = `ORDER-${Date.now()}-${uuidv4().slice(0, 8).toUpperCase()}`
 
-        // Create Snap transaction
-        const transaction = await createSnapTransaction({
-            orderId,
-            grossAmount: Math.round(amount),
-            customerName,
-            customerEmail,
-            customerPhone: customerPhone || '',
-            items: items || [{
+        // Prepare items - filter out zero-price items and ensure integers
+        const itemDetails = (items || [])
+            .filter((item: { price: number }) => item.price > 0)
+            .map((item: { id: string; name: string; price: number; quantity: number }) => ({
+                id: item.id,
+                name: item.name,
+                price: Math.round(item.price),
+                quantity: item.quantity,
+            }))
+
+        // If no valid items, create a single order item
+        if (itemDetails.length === 0) {
+            itemDetails.push({
                 id: 'print-order',
                 name: '3D Print Order',
                 price: Math.round(amount),
                 quantity: 1,
-            }],
+            })
+        }
+
+        // Calculate gross_amount from item_details sum (Midtrans requirement)
+        const grossAmount = itemDetails.reduce(
+            (sum: number, item: { price: number; quantity: number }) => sum + (item.price * item.quantity),
+            0
+        )
+
+        // Create Snap transaction
+        const transaction = await createSnapTransaction({
+            orderId,
+            grossAmount,
+            customerName,
+            customerEmail,
+            customerPhone: customerPhone || '',
+            items: itemDetails,
         })
 
         return NextResponse.json({
@@ -54,3 +75,4 @@ export async function POST(request: NextRequest) {
         )
     }
 }
+

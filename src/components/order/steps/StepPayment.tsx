@@ -52,6 +52,12 @@ export function StepPayment({ wizard }: StepPaymentProps) {
                             quantity: 1,
                         },
                         {
+                            id: 'provider-fee',
+                            name: 'Provider Fee',
+                            price: computed.markup,
+                            quantity: 1,
+                        },
+                        {
                             id: 'platform-fee',
                             name: 'Platform Fee',
                             price: computed.platformFee,
@@ -133,6 +139,10 @@ export function StepPayment({ wizard }: StepPaymentProps) {
                         <span className="font-bold text-slate-900">Rp {computed.timeCost.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between text-sm">
+                        <span className="text-slate-600">Provider Fee</span>
+                        <span className="font-bold text-slate-900">Rp {computed.markup.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
                         <span className="text-slate-600">Platform Fee</span>
                         <span className="font-bold text-slate-900">Rp {computed.platformFee.toLocaleString()}</span>
                     </div>
@@ -177,8 +187,8 @@ export function StepPayment({ wizard }: StepPaymentProps) {
                 onClick={handlePayNow}
                 disabled={isLoading || !snapReady || computed.total <= 0}
                 className={`w-full py-4 rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-3 ${isLoading || !snapReady || computed.total <= 0
-                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                        : 'bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 active:scale-[0.98]'
+                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    : 'bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 active:scale-[0.98]'
                     }`}
             >
                 {isLoading ? (

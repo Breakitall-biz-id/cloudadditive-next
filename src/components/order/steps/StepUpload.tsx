@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react"
 import { useDropzone } from "react-dropzone"
 import type { UseOrderWizardReturn } from "@/hooks/useOrderWizard"
-import { isGcodeFile, parseGcodeFile, formatPrintTime, type GcodeStats } from "@/lib/gcode-parser"
+import { isGcodeFile, parseGcodeFile, formatPrintTime, type GcodeParseResult } from "@/lib/gcode-parser"
+import { Gcode3DViewer } from "@/components/order/Gcode3DViewer"
 
 interface StepUploadProps {
     wizard: UseOrderWizardReturn
@@ -11,8 +12,9 @@ interface StepUploadProps {
 
 export function StepUpload({ wizard }: StepUploadProps) {
     const { state, actions } = wizard
-    const [gcodePreview, setGcodePreview] = useState<GcodeStats | null>(null)
+    const [gcodePreview, setGcodePreview] = useState<GcodeParseResult | null>(null)
     const [isParsing, setIsParsing] = useState(false)
+    const [showPreview, setShowPreview] = useState(false)
 
     const onDrop = useCallback((acceptedFiles: File[]) => {
         if (acceptedFiles.length > 0) {
@@ -32,6 +34,7 @@ export function StepUpload({ wizard }: StepUploadProps) {
                 .finally(() => setIsParsing(false))
         } else {
             setGcodePreview(null)
+            setShowPreview(false)
         }
     }, [state.file])
 
@@ -47,6 +50,7 @@ export function StepUpload({ wizard }: StepUploadProps) {
     })
 
     const fileIsGcode = state.file ? isGcodeFile(state.file) : false
+    const compatibility = gcodePreview?.compatibility
 
     return (
         <>
@@ -101,6 +105,8 @@ export function StepUpload({ wizard }: StepUploadProps) {
                                             <span className="text-violet-600 font-bold">{formatPrintTime(gcodePreview.printTimeMinutes)}</span>
                                             <span className="text-slate-300">•</span>
                                             <span className="text-violet-600 font-bold">{gcodePreview.filamentGrams.toFixed(1)}g</span>
+                                            <span className="text-slate-300">•</span>
+                                            <span className="text-violet-600 font-bold">{gcodePreview.layerCount} layers</span>
                                         </>
                                     )}
                                 </div>
@@ -114,8 +120,8 @@ export function StepUpload({ wizard }: StepUploadProps) {
                                 </div>
                             ) : (
                                 <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${fileIsGcode
-                                        ? 'bg-violet-50 border border-violet-200 text-violet-600'
-                                        : 'bg-emerald-50 border border-emerald-200 text-emerald-600'
+                                    ? 'bg-violet-50 border border-violet-200 text-violet-600'
+                                    : 'bg-emerald-50 border border-emerald-200 text-emerald-600'
                                     }`}>
                                     <span className="material-symbols-outlined text-xs">check_circle</span>
                                     {fileIsGcode ? 'G-CODE' : 'STL'}
@@ -129,6 +135,98 @@ export function StepUpload({ wizard }: StepUploadProps) {
                             </button>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* G-code Printer Specs */}
+            {fileIsGcode && compatibility && (
+                <div className="bg-white rounded-xl border border-slate-200 p-5">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Detected Printer Settings</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {compatibility.bedSizeX && compatibility.bedSizeY && (
+                            <div className="flex flex-col gap-1">
+                                <span className="text-xs text-slate-400">Bed Size</span>
+                                <span className="text-sm font-bold text-slate-900">{compatibility.bedSizeX} × {compatibility.bedSizeY} mm</span>
+                            </div>
+                        )}
+                        {compatibility.nozzleDiameter && (
+                            <div className="flex flex-col gap-1">
+                                <span className="text-xs text-slate-400">Nozzle</span>
+                                <span className="text-sm font-bold text-slate-900">{compatibility.nozzleDiameter} mm</span>
+                            </div>
+                        )}
+                        {compatibility.layerHeight && (
+                            <div className="flex flex-col gap-1">
+                                <span className="text-xs text-slate-400">Layer Height</span>
+                                <span className="text-sm font-bold text-slate-900">{compatibility.layerHeight} mm</span>
+                            </div>
+                        )}
+                        {compatibility.nozzleTemp && (
+                            <div className="flex flex-col gap-1">
+                                <span className="text-xs text-slate-400">Nozzle Temp</span>
+                                <span className="text-sm font-bold text-slate-900">{compatibility.nozzleTemp}°C</span>
+                            </div>
+                        )}
+                        {compatibility.bedTemp && (
+                            <div className="flex flex-col gap-1">
+                                <span className="text-xs text-slate-400">Bed Temp</span>
+                                <span className="text-sm font-bold text-slate-900">{compatibility.bedTemp}°C</span>
+                            </div>
+                        )}
+                        {gcodePreview?.flavor && (
+                            <div className="flex flex-col gap-1">
+                                <span className="text-xs text-slate-400">Firmware</span>
+                                <span className="text-sm font-bold text-slate-900">{gcodePreview.flavor}</span>
+                            </div>
+                        )}
+                        {gcodePreview?.slicer && (
+                            <div className="flex flex-col gap-1">
+                                <span className="text-xs text-slate-400">Slicer</span>
+                                <span className="text-sm font-bold text-slate-900">{gcodePreview.slicer}</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Compatibility Warnings */}
+            {fileIsGcode && compatibility && compatibility.warnings.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                        <span className="material-symbols-outlined text-amber-500 flex-shrink-0">warning</span>
+                        <div className="flex flex-col gap-2">
+                            <p className="text-sm font-bold text-amber-700">Compatibility Warnings</p>
+                            <ul className="text-xs text-amber-600 space-y-1">
+                                {compatibility.warnings.map((warning, i) => (
+                                    <li key={i}>• {warning}</li>
+                                ))}
+                            </ul>
+                            <p className="text-xs text-amber-600 mt-1">
+                                Your G-code may not be compatible with all printers. Consider uploading an STL file instead for automatic slicing.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* G-code 3D Preview */}
+            {fileIsGcode && state.file && (
+                <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Toolpath Preview</h4>
+                        <button
+                            onClick={() => setShowPreview(!showPreview)}
+                            className="text-xs font-bold text-violet-600 hover:text-violet-700 flex items-center gap-1"
+                        >
+                            <span className="material-symbols-outlined text-sm">
+                                {showPreview ? 'visibility_off' : 'visibility'}
+                            </span>
+                            {showPreview ? 'Hide Preview' : 'Show Preview'}
+                        </button>
+                    </div>
+                    {showPreview && (
+                        <Gcode3DViewer file={state.file} className="h-[350px]" />
+                    )}
                 </div>
             )}
 
@@ -154,4 +252,3 @@ export function StepUpload({ wizard }: StepUploadProps) {
         </>
     )
 }
-

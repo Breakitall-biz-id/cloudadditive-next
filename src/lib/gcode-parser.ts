@@ -13,6 +13,21 @@ export interface GcodeStats {
     slicer: string | null
 }
 
+export interface GcodeCompatibility {
+    bedSizeX: number | null
+    bedSizeY: number | null
+    bedSizeZ: number | null
+    nozzleDiameter: number | null
+    layerHeight: number | null
+    bedTemp: number | null
+    nozzleTemp: number | null
+    warnings: string[]
+}
+
+export interface GcodeParseResult extends GcodeStats {
+    compatibility: GcodeCompatibility
+}
+
 // Filament diameter and material densities for calculating weight
 const FILAMENT_DIAMETER = 1.75 // mm
 const MATERIAL_DENSITY: Record<string, number> = {
@@ -26,18 +41,28 @@ const MATERIAL_DENSITY: Record<string, number> = {
  * Parse G-code content to extract print statistics
  * This only reads the first ~500 lines and last ~200 lines where metadata is typically stored
  */
-export async function parseGcodeFile(file: File, material: string = 'pla'): Promise<GcodeStats> {
+export async function parseGcodeFile(file: File, material: string = 'pla'): Promise<GcodeParseResult> {
     const text = await file.text()
     return parseGcodeStats(text, material)
 }
 
-export function parseGcodeStats(gcode: string, material: string = 'pla'): GcodeStats {
+export function parseGcodeStats(gcode: string, material: string = 'pla'): GcodeParseResult {
     let printTimeMinutes = 0
     let filamentMm = 0
     let filamentGrams = 0
     let layerCount = 0
     let flavor: string | null = null
     let slicer: string | null = null
+
+    // Compatibility info
+    let bedSizeX: number | null = null
+    let bedSizeY: number | null = null
+    let bedSizeZ: number | null = null
+    let nozzleDiameter: number | null = null
+    let layerHeight: number | null = null
+    let bedTemp: number | null = null
+    let nozzleTemp: number | null = null
+    const warnings: string[] = []
 
     const lines = gcode.split('\n')
 
@@ -49,9 +74,6 @@ export function parseGcodeStats(gcode: string, material: string = 'pla'): GcodeS
 
     for (const line of linesToCheck) {
         const trimmedLine = line.trim()
-
-        // Skip non-comment lines for metadata
-        if (!trimmedLine.startsWith(';')) continue
 
         // === SLICER DETECTION ===
         // Cura format
@@ -80,6 +102,64 @@ export function parseGcodeStats(gcode: string, material: string = 'pla'): GcodeS
         if (trimmedLine.includes('gcode_flavor')) {
             const match = trimmedLine.match(/gcode_flavor\s*=\s*(\w+)/)
             if (match) flavor = match[1]
+        }
+
+        // === BED SIZE ===
+        // Cura format: ;MAXX:220, ;MAXY:220
+        if (trimmedLine.startsWith(';MAXX:')) {
+            bedSizeX = parseFloat(trimmedLine.replace(';MAXX:', '').trim())
+        }
+        if (trimmedLine.startsWith(';MAXY:')) {
+            bedSizeY = parseFloat(trimmedLine.replace(';MAXY:', '').trim())
+        }
+        if (trimmedLine.startsWith(';MAXZ:')) {
+            bedSizeZ = parseFloat(trimmedLine.replace(';MAXZ:', '').trim())
+        }
+        // PrusaSlicer format: ; bed_shape = 0x0,250x0,250x210,0x210
+        if (trimmedLine.includes('bed_shape')) {
+            const match = trimmedLine.match(/(\d+)x(\d+),(\d+)x(\d+),(\d+)x(\d+),(\d+)x(\d+)/)
+            if (match) {
+                bedSizeX = Math.max(parseFloat(match[3]), parseFloat(match[5]))
+                bedSizeY = Math.max(parseFloat(match[4]), parseFloat(match[6]))
+            }
+        }
+
+        // === NOZZLE DIAMETER ===
+        // PrusaSlicer: ; nozzle_diameter = 0.4
+        if (trimmedLine.includes('nozzle_diameter')) {
+            const match = trimmedLine.match(/nozzle_diameter\s*=\s*([\d.]+)/)
+            if (match) nozzleDiameter = parseFloat(match[1])
+        }
+        // Cura: ;NOZZLE:0.4
+        if (trimmedLine.startsWith(';NOZZLE:')) {
+            nozzleDiameter = parseFloat(trimmedLine.replace(';NOZZLE:', '').trim())
+        }
+
+        // === LAYER HEIGHT ===
+        // Cura: ;Layer height: 0.2
+        if (trimmedLine.includes('Layer height:')) {
+            const match = trimmedLine.match(/Layer height:\s*([\d.]+)/)
+            if (match) layerHeight = parseFloat(match[1])
+        }
+        // PrusaSlicer: ; layer_height = 0.2
+        if (trimmedLine.includes('layer_height') && trimmedLine.includes('=')) {
+            const match = trimmedLine.match(/layer_height\s*=\s*([\d.]+)/)
+            if (match) layerHeight = parseFloat(match[1])
+        }
+
+        // === TEMPERATURES ===
+        // Parse M104 (set nozzle temp) and M140 (set bed temp)
+        if (!trimmedLine.startsWith(';')) {
+            // M104 S200 - set nozzle temp
+            if (trimmedLine.startsWith('M104') || trimmedLine.startsWith('M109')) {
+                const match = trimmedLine.match(/S(\d+)/)
+                if (match && !nozzleTemp) nozzleTemp = parseInt(match[1])
+            }
+            // M140 S60 - set bed temp
+            if (trimmedLine.startsWith('M140') || trimmedLine.startsWith('M190')) {
+                const match = trimmedLine.match(/S(\d+)/)
+                if (match && !bedTemp) bedTemp = parseInt(match[1])
+            }
         }
 
         // === PRINT TIME ===
@@ -156,6 +236,20 @@ export function parseGcodeStats(gcode: string, material: string = 'pla'): GcodeS
         filamentGrams = volumeCm3 * density
     }
 
+    // Generate compatibility warnings
+    if (bedSizeX && bedSizeX > 300) {
+        warnings.push(`Large bed size detected (${bedSizeX}mm). May not fit smaller printers.`)
+    }
+    if (nozzleDiameter && nozzleDiameter !== 0.4) {
+        warnings.push(`Non-standard nozzle diameter (${nozzleDiameter}mm). Standard is 0.4mm.`)
+    }
+    if (nozzleTemp && nozzleTemp > 260) {
+        warnings.push(`High nozzle temperature (${nozzleTemp}°C). Verify printer can handle this.`)
+    }
+    if (bedTemp && bedTemp > 100) {
+        warnings.push(`High bed temperature (${bedTemp}°C). Verify printer can handle this.`)
+    }
+
     return {
         printTimeMinutes,
         filamentMm,
@@ -163,6 +257,16 @@ export function parseGcodeStats(gcode: string, material: string = 'pla'): GcodeS
         layerCount,
         flavor,
         slicer,
+        compatibility: {
+            bedSizeX,
+            bedSizeY,
+            bedSizeZ,
+            nozzleDiameter,
+            layerHeight,
+            bedTemp,
+            nozzleTemp,
+            warnings,
+        }
     }
 }
 
