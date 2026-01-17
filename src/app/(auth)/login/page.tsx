@@ -63,7 +63,7 @@ function LoginForm() {
             {/* Left Side - Hero Image */}
             <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-slate-900">
                 <Image
-                    src="https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?q=80&w=2070"
+                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHOcYGLzWQ38gYTOV8_lLdVaAyFhHDbnWH5gPybHFYTTBfVjAIln0-lkLxF2vMwKMx1kO872ljwvkdbRemdt8jqKfMDhQztf31wXKQOsuMJ1U89cBbj7BvXLgk1XCFTT6vE0iokfE_H9vNYI-KEW5aA6s803cj6TyVb5Rjop3ofylMm0fjjg7of1jlqKC8aZasaADzv6J9VyrCnTm_AzXSV9MkW-OlbZMUsNUJwFnjxXEgXH6Qv29ciw79LZTxOu5XZW1C6N1d-g?q=80&w=2070"
                     alt="3D Printing Manufacturing"
                     fill
                     className="object-cover opacity-60"
@@ -84,10 +84,10 @@ function LoginForm() {
                         </div>
 
                         <h1 className="text-4xl xl:text-5xl font-black text-white leading-tight mb-6">
-                            Selamat Datang di Masa Depan Manufaktur
+                            Welcome Back to the Future of Manufacturing
                         </h1>
                         <p className="text-slate-300 text-lg leading-relaxed">
-                            Akses workspace Anda dan lanjutkan membuat parts berkualitas tinggi dengan presisi industrial-grade.
+                            Access your workspace and continue building high-performance parts with industrial-grade precision.
                         </p>
                     </div>
                 </div>
@@ -108,8 +108,8 @@ function LoginForm() {
 
                     {/* Header */}
                     <div className="mb-10">
-                        <h2 className="text-3xl font-black text-slate-900 mb-2">Masuk</h2>
-                        <p className="text-slate-500">Selamat datang kembali! Silakan masukkan detail Anda.</p>
+                        <h2 className="text-3xl font-black text-slate-900 mb-2">Sign In</h2>
+                        <p className="text-slate-500">Welcome back! Please enter your details.</p>
                     </div>
 
                     {/* Social Login */}
@@ -125,7 +125,7 @@ function LoginForm() {
                                 <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
                                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
                             </svg>
-                            <span className="text-sm font-semibold text-slate-900">Lanjutkan dengan Google</span>
+                            <span className="text-sm font-semibold text-slate-900">Continue with Google</span>
                         </button>
                     </div>
 
@@ -147,13 +147,13 @@ function LoginForm() {
 
                         <div>
                             <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2" htmlFor="email">
-                                Alamat Email
+                                Email Address
                             </label>
                             <input
                                 id="email"
                                 type="email"
-                                placeholder="nama@perusahaan.com"
-                                className="w-full px-4 py-3 bg-slate-900 border border-slate-200 text-white rounded-xl transition-all focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+                                placeholder="name@company.com"
+                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 text-slate-900 rounded-xl transition-all focus:ring-2 focus:ring-primary focus:border-primary outline-none placeholder:text-slate-400"
                                 {...register("email")}
                             />
                             {errors.email && (
@@ -167,14 +167,14 @@ function LoginForm() {
                                     Password
                                 </label>
                                 <Link href="/forgot-password" className="text-xs font-bold text-primary hover:text-cyber-violet transition-colors">
-                                    Lupa Password?
+                                    Forgot Password?
                                 </Link>
                             </div>
                             <input
                                 id="password"
                                 type="password"
                                 placeholder="••••••••"
-                                className="w-full px-4 py-3 bg-slate-900 border border-slate-200 text-white rounded-xl transition-all focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 text-slate-900 rounded-xl transition-all focus:ring-2 focus:ring-primary focus:border-primary outline-none placeholder:text-slate-400"
                                 {...register("password")}
                             />
                             {errors.password && (

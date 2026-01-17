@@ -193,7 +193,7 @@ function RegisterForm() {
                                 id="name"
                                 type="text"
                                 placeholder="John Doe"
-                                className="w-full px-4 py-3 bg-slate-900 border border-slate-200 text-white rounded-xl transition-all focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 text-slate-900 rounded-xl transition-all focus:ring-2 focus:ring-primary focus:border-primary outline-none placeholder:text-slate-400"
                                 {...register("name")}
                             />
                             {errors.name && (
@@ -208,8 +208,8 @@ function RegisterForm() {
                             <input
                                 id="email"
                                 type="email"
-                                placeholder="nama@perusahaan.com"
-                                className="w-full px-4 py-3 bg-slate-900 border border-slate-200 text-white rounded-xl transition-all focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+                                placeholder="name@company.com"
+                                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 text-slate-900 rounded-xl transition-all focus:ring-2 focus:ring-primary focus:border-primary outline-none placeholder:text-slate-400"
                                 {...register("email")}
                             />
                             {errors.email && (
@@ -226,7 +226,7 @@ function RegisterForm() {
                                     id="password"
                                     type="password"
                                     placeholder="••••••••"
-                                    className="w-full px-4 py-3 bg-slate-900 border border-slate-200 text-white rounded-xl transition-all focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+                                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 text-slate-900 rounded-xl transition-all focus:ring-2 focus:ring-primary focus:border-primary outline-none placeholder:text-slate-400"
                                     {...register("password")}
                                 />
                                 {errors.password && (
@@ -241,7 +241,7 @@ function RegisterForm() {
                                     id="confirmPassword"
                                     type="password"
                                     placeholder="••••••••"
-                                    className="w-full px-4 py-3 bg-slate-900 border border-slate-200 text-white rounded-xl transition-all focus:ring-2 focus:ring-primary focus:border-primary outline-none"
+                                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 text-slate-900 rounded-xl transition-all focus:ring-2 focus:ring-primary focus:border-primary outline-none placeholder:text-slate-400"
                                     {...register("confirmPassword")}
                                 />
                                 {errors.confirmPassword && (

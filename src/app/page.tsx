@@ -285,6 +285,97 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Provider Section */}
+      <section className="py-24 bg-slate-900 relative overflow-hidden">
+        <div className="absolute inset-0 hero-grid opacity-5 pointer-events-none"></div>
+        <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/5 to-transparent pointer-events-none"></div>
+
+        <div className="max-w-7xl mx-auto px-6 relative z-10">
+          <div className="flex flex-col lg:flex-row items-center gap-16">
+            <div className="lg:w-1/2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/20 border border-primary/30 text-primary text-xs font-bold mb-6">
+                <span className="material-symbols-outlined text-sm">handshake</span>
+                PARTNER NETWORK
+              </div>
+              <h2 className="text-3xl md:text-5xl font-black text-white mb-6 leading-tight">
+                Turn Your Idle Printers into <span className="text-primary">Revenue Streams</span>
+              </h2>
+              <p className="text-slate-400 text-lg mb-8 leading-relaxed">
+                Join the CloudAdditive manufacturing network. We handle the sales, file processing, and customer support. You just print and ship.
+              </p>
+
+              <div className="space-y-4 mb-10">
+                {[
+                  { title: "Guaranteed Payments", desc: "Get paid weekly for every successful print job." },
+                  { title: "Smart Queuing", desc: "Our AI matches jobs to your specific printer capabilities." },
+                  { title: "Zero Marketing", desc: "Stop chasing clients. Let the work come to you." },
+                ].map((item, i) => (
+                  <div key={i} className="flex gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0 text-primary">
+                      <span className="material-symbols-outlined">check_circle</span>
+                    </div>
+                    <div>
+                      <h4 className="text-white font-bold">{item.title}</h4>
+                      <p className="text-slate-500 text-sm">{item.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <Link href="/register?role=provider" className="inline-flex items-center gap-2 bg-white text-slate-900 hover:bg-slate-100 font-bold py-4 px-8 rounded-xl transition-all">
+                Become a Partner
+                <span className="material-symbols-outlined">arrow_forward</span>
+              </Link>
+            </div>
+
+            <div className="lg:w-1/2 w-full">
+              <div className="relative">
+                <div className="absolute -inset-4 bg-gradient-to-r from-primary/20 to-cyber-violet/20 rounded-3xl blur-2xl"></div>
+                <div className="relative bg-slate-800 border border-slate-700 rounded-3xl p-8 shadow-2xl">
+                  {/* Mockup of Provider Dashboard */}
+                  <div className="flex items-center justify-between mb-8 border-b border-slate-700 pb-6">
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 uppercase">Monthly Earnings</p>
+                      <h3 className="text-3xl font-mono font-bold text-white">RP 12.450.000</h3>
+                    </div>
+                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/20 text-green-400 text-xs font-bold">
+                      <span className="material-symbols-outlined text-sm">trending_up</span>
+                      +24.5%
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <p className="text-xs font-bold text-slate-500 uppercase">Active Jobs</p>
+                    {[
+                      { id: "#ORD-9921", status: "Printing", progress: 75, material: "PLA Pro" },
+                      { id: "#ORD-9924", status: "Queued", progress: 0, material: "PETG" },
+                      { id: "#ORD-9925", status: "Review", progress: 0, material: "TPU 95A" },
+                    ].map((job, i) => (
+                      <div key={i} className="bg-slate-900/50 border border-slate-700 rounded-xl p-4 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className={`w-2 h-2 rounded-full ${job.progress > 0 ? 'bg-primary animate-pulse' : 'bg-slate-600'}`}></div>
+                          <div>
+                            <div className="text-white font-bold text-sm">{job.id}</div>
+                            <div className="text-slate-500 text-xs">{job.material}</div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          {job.progress > 0 ? (
+                            <div className="text-primary text-xs font-bold">{job.status} {job.progress}%</div>
+                          ) : (
+                            <div className="text-slate-500 text-xs font-bold">{job.status}</div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="py-24 px-6 bg-white">
         <div className="max-w-7xl mx-auto">
