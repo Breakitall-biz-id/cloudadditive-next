@@ -71,8 +71,8 @@ export function OrderSidebar({ wizard }: OrderSidebarProps) {
                 {/* Preview */}
                 <div className="flex flex-col gap-4">
                     <div
-                        className={`aspect-square w-full rounded-lg border border-slate-200 flex items-center justify-center relative overflow-hidden cursor-pointer hover:ring-2 transition-all ${is3DFile ? 'bg-slate-100 hover:ring-primary/30' :
-                                isGcode ? 'bg-slate-900 hover:ring-violet-500/30' : 'bg-slate-100'
+                        className={`aspect-square w-full rounded-lg border border-slate-200 flex items-center justify-center relative overflow-hidden cursor-pointer hover:ring-2 transition-all bg-slate-100 ${is3DFile ? 'hover:ring-primary/30' :
+                                isGcode ? 'hover:ring-violet-500/30' : ''
                             }`}
                         onClick={() => {
                             if (is3DFile || isGcode) {

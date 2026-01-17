@@ -77,7 +77,7 @@ export function Preview3DModal({ wizard }: Preview3DModalProps) {
                 </div>
 
                 {/* Modal Body - 3D Viewer */}
-                <div className={`flex-1 p-4 min-h-[500px] ${isGcode ? 'bg-slate-900' : 'bg-slate-50'}`}>
+                <div className="flex-1 p-4 min-h-[500px] bg-slate-50">
                     {isGcode ? (
                         <Gcode3DViewer
                             file={state.file}

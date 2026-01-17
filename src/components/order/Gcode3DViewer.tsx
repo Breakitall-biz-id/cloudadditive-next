@@ -55,7 +55,7 @@ export function Gcode3DViewer({ file, className = "" }: Gcode3DViewerProps) {
 
                 // Setup scene
                 const scene = new THREE.Scene()
-                scene.background = new THREE.Color(0x1a1a2e)
+                scene.background = new THREE.Color(0xf8fafc) // slate-50
 
                 // Setup camera
                 const width = containerRef.current!.clientWidth
@@ -134,7 +134,7 @@ export function Gcode3DViewer({ file, className = "" }: Gcode3DViewerProps) {
     }, [file])
 
     return (
-        <div className={`relative bg-slate-900 overflow-hidden ${className}`}>
+        <div className={`relative bg-slate-50 overflow-hidden ${className}`}>
             <div ref={containerRef} className="absolute inset-0" />
 
             {/* Loading overlay */}
@@ -151,22 +151,22 @@ export function Gcode3DViewer({ file, className = "" }: Gcode3DViewerProps) {
 
             {/* Error overlay */}
             {error && (
-                <div className="absolute inset-0 bg-slate-900/80 flex items-center justify-center">
+                <div className="absolute inset-0 bg-slate-50/80 flex items-center justify-center">
                     <div className="flex flex-col items-center gap-3 text-center p-4">
                         <span className="material-symbols-outlined text-4xl text-red-400">
                             error
                         </span>
-                        <span className="text-red-400 text-sm">{error}</span>
+                        <span className="text-red-500 text-sm">{error}</span>
                     </div>
                 </div>
             )}
 
             {/* Stats overlay */}
             {stats && !isLoading && !error && (
-                <div className="absolute bottom-3 left-3 bg-slate-800/90 backdrop-blur-sm rounded-lg px-3 py-2 text-xs text-slate-300">
+                <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-2 text-xs text-slate-600 shadow-sm">
                     <div className="flex gap-4">
                         <span>Size: {stats.sizeX} × {stats.sizeY} × {stats.sizeZ} mm</span>
-                        <span className="text-slate-500">|</span>
+                        <span className="text-slate-400">|</span>
                         <span>{stats.points.toLocaleString()} points</span>
                     </div>
                 </div>
@@ -174,15 +174,15 @@ export function Gcode3DViewer({ file, className = "" }: Gcode3DViewerProps) {
 
             {/* Legend */}
             {!isLoading && !error && (
-                <div className="absolute top-3 right-3 bg-slate-800/90 backdrop-blur-sm rounded-lg px-3 py-2 text-xs">
+                <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-2 text-xs shadow-sm">
                     <div className="flex gap-3">
                         <div className="flex items-center gap-1">
-                            <div className="w-3 h-0.5 bg-orange-400 rounded" />
-                            <span className="text-slate-300">Extrude</span>
+                            <div className="w-3 h-0.5 bg-orange-500 rounded" />
+                            <span className="text-slate-600">Extrude</span>
                         </div>
                         <div className="flex items-center gap-1">
-                            <div className="w-3 h-0.5 bg-cyan-400 rounded" />
-                            <span className="text-slate-300">Travel</span>
+                            <div className="w-3 h-0.5 bg-cyan-500 rounded" />
+                            <span className="text-slate-600">Travel</span>
                         </div>
                     </div>
                 </div>
