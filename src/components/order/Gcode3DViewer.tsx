@@ -134,8 +134,8 @@ export function Gcode3DViewer({ file, className = "" }: Gcode3DViewerProps) {
     }, [file])
 
     return (
-        <div className={`relative bg-slate-900 rounded-xl overflow-hidden ${className}`}>
-            <div ref={containerRef} className="w-full h-full min-h-[300px]" />
+        <div className={`relative bg-slate-900 overflow-hidden ${className}`}>
+            <div ref={containerRef} className="absolute inset-0" />
 
             {/* Loading overlay */}
             {isLoading && (
