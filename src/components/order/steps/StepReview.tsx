@@ -3,6 +3,7 @@
 import { useEffect } from "react"
 import type { UseOrderWizardReturn } from "@/hooks/useOrderWizard"
 import { MATERIALS, QUALITIES } from "@/types/order"
+import { isGcodeFile } from "@/lib/gcode-parser"
 
 interface StepReviewProps {
     wizard: UseOrderWizardReturn
@@ -15,12 +16,18 @@ export function StepReview({ wizard }: StepReviewProps) {
     const quality = QUALITIES.find(q => q.id === state.selectedQuality)
     const courier = state.courierRates.find(c => c.id === state.selectedCourier)
 
-    // Trigger slicing when entering Review step
+    const fileIsGcode = state.file ? isGcodeFile(state.file) : false
+
+    // Trigger slicing/parsing when entering Review step
     useEffect(() => {
-        if (state.file && state.selectedMaterial && state.selectedQuality && !state.slicedResult && !state.isSlicing) {
+        if (!state.file || state.slicedResult || state.isSlicing) return
+
+        // For G-code files, just parse - no material/quality needed
+        // For STL/OBJ files, require material and quality selection
+        if (fileIsGcode || (state.selectedMaterial && state.selectedQuality)) {
             actions.sliceModel()
         }
-    }, [state.file, state.selectedMaterial, state.selectedQuality, state.slicedResult, state.isSlicing, actions])
+    }, [state.file, state.selectedMaterial, state.selectedQuality, state.slicedResult, state.isSlicing, actions, fileIsGcode])
 
     return (
         <>

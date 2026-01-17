@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import type {
     OrderWizardState,
     OrderWizardActions,
@@ -201,6 +201,14 @@ export function useOrderWizard() {
         }
     }, [file, selectedMaterial, selectedQuality])
 
+    // Auto-parse G-code files when uploaded (so pricing is available immediately)
+    useEffect(() => {
+        if (file && isGcodeFile(file) && !slicedResult && !isSlicing) {
+            sliceModel()
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [file]) // Only trigger when file changes, sliceModel handles the rest
+
 
     // Computed Values
     const canProceed = useCallback(() => {
@@ -224,38 +232,60 @@ export function useOrderWizard() {
         defaultInfillPercentage: 0.20,
     }
 
-    // Get material data
-    const materialData = selectedMaterial
+    // Get material data - for G-code, use PLA as default since material is embedded in file
+    const fileIsGcode = file ? isGcodeFile(file) : false
+    const effectiveMaterial = fileIsGcode ? 'pla' : selectedMaterial
+    const materialData = effectiveMaterial
         ? ({
             pla: { pricePerGram: 250, density: 1.24 },
             abs: { pricePerGram: 300, density: 1.04 },
             petg: { pricePerGram: 350, density: 1.27 },
             tpu: { pricePerGram: 450, density: 1.21 },
-        } as Record<string, { pricePerGram: number; density: number }>)[selectedMaterial]
+        } as Record<string, { pricePerGram: number; density: number }>)[effectiveMaterial]
         : null
 
-    // Get quality multiplier
-    const qualityMultiplier = selectedQuality
-        ? ({ draft: 0.8, standard: 1.0, high: 1.3, ultra: 1.6 } as Record<string, number>)[selectedQuality] || 1.0
-        : 1.0
+    // Get quality multiplier - for G-code, use standard since quality is embedded
+    const qualityMultiplier = fileIsGcode
+        ? 1.0
+        : selectedQuality
+            ? ({ draft: 0.8, standard: 1.0, high: 1.3, ultra: 1.6 } as Record<string, number>)[selectedQuality] || 1.0
+            : 1.0
 
-    // Calculate costs
-    const volumeMM3 = modelDimensions?.volume || 0
-    const volumeCM3 = volumeMM3 / 1000 // Convert mm³ to cm³
+    // Calculate costs - prioritize slicedResult data if available
+    let materialCost = 0
+    let timeCost = 0
 
-    // Estimated weight = volume × infill × density
-    const estimatedWeight = materialData
-        ? volumeCM3 * settings.defaultInfillPercentage * materialData.density
-        : 0
+    if (slicedResult && slicedResult.filamentGrams > 0) {
+        // Use actual data from sliced result or parsed G-code
+        const filamentWeight = slicedResult.filamentGrams
+        const printTimeHours = slicedResult.printTimeMinutes / 60
 
-    // Material cost = weight × price per gram × quality multiplier × quantity
-    const materialCost = materialData
-        ? Math.round(estimatedWeight * materialData.pricePerGram * qualityMultiplier * quantity)
-        : 0
+        // Material cost = weight × price per gram × quantity
+        materialCost = materialData
+            ? Math.round(filamentWeight * materialData.pricePerGram * quantity)
+            : 0
 
-    // Time cost = (volume / print speed) × machine rate × quality multiplier
-    const estimatedHours = volumeMM3 > 0 ? volumeMM3 / settings.estimatedPrintSpeed * qualityMultiplier : 0
-    const timeCost = Math.round(estimatedHours * settings.machineRatePerHour * quantity)
+        // Time cost = print hours × machine rate × quantity
+        timeCost = Math.round(printTimeHours * settings.machineRatePerHour * quantity)
+    } else if (modelDimensions?.volume && modelDimensions.volume > 0) {
+        // Fallback: estimate from volume for STL files not yet sliced
+        const volumeMM3 = modelDimensions.volume
+        const volumeCM3 = volumeMM3 / 1000
+
+        // Estimated weight = volume × infill × density
+        const estimatedWeight = materialData
+            ? volumeCM3 * settings.defaultInfillPercentage * materialData.density
+            : 0
+
+        // Material cost = weight × price per gram × quality multiplier × quantity
+        materialCost = materialData
+            ? Math.round(estimatedWeight * materialData.pricePerGram * qualityMultiplier * quantity)
+            : 0
+
+        // Time cost = (volume / print speed) × machine rate × quality multiplier
+        const estimatedHours = volumeMM3 / settings.estimatedPrintSpeed * qualityMultiplier
+        timeCost = Math.round(estimatedHours * settings.machineRatePerHour * quantity)
+    }
 
     // Subtotal
     const subtotal = materialCost + timeCost
