@@ -71,11 +71,11 @@ export function OrderSidebar({ wizard }: OrderSidebarProps) {
                 {/* Preview */}
                 <div className="flex flex-col gap-4">
                     <div
-                        className={`aspect-square w-full rounded-lg border border-slate-200 flex items-center justify-center relative overflow-hidden ${is3DFile ? 'bg-slate-100 cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all' :
-                                isGcode ? 'bg-slate-900' : 'bg-slate-100'
+                        className={`aspect-square w-full rounded-lg border border-slate-200 flex items-center justify-center relative overflow-hidden cursor-pointer hover:ring-2 transition-all ${is3DFile ? 'bg-slate-100 hover:ring-primary/30' :
+                                isGcode ? 'bg-slate-900 hover:ring-violet-500/30' : 'bg-slate-100'
                             }`}
                         onClick={() => {
-                            if (is3DFile) {
+                            if (is3DFile || isGcode) {
                                 actions.setShowPreviewModal(true)
                             }
                         }}
@@ -106,6 +106,12 @@ export function OrderSidebar({ wizard }: OrderSidebarProps) {
                                 <span className="absolute top-2 right-2 px-2 py-0.5 bg-violet-600 text-white text-[10px] font-bold uppercase rounded">
                                     G-CODE
                                 </span>
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 hover:opacity-100 transition-all flex items-end justify-center pb-4">
+                                    <span className="px-3 py-1.5 bg-white/90 backdrop-blur-sm rounded-full text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                        <span className="material-symbols-outlined text-sm">zoom_out_map</span>
+                                        Click to expand
+                                    </span>
+                                </div>
                             </>
                         ) : state.file ? (
                             <>

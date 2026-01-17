@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic"
 import type { UseOrderWizardReturn } from "@/hooks/useOrderWizard"
+import { isGcodeFile } from "@/lib/gcode-parser"
 
 // Dynamic import Model3DViewer
 const Model3DViewer = dynamic(() => import("@/components/order/Model3DViewer"), {
@@ -13,6 +14,19 @@ const Model3DViewer = dynamic(() => import("@/components/order/Model3DViewer"), 
     ),
 })
 
+// Dynamic import Gcode3DViewer
+const Gcode3DViewer = dynamic(
+    () => import("@/components/order/Gcode3DViewer").then(mod => ({ default: mod.Gcode3DViewer })),
+    {
+        ssr: false,
+        loading: () => (
+            <div className="w-full h-full flex items-center justify-center bg-slate-900">
+                <span className="material-symbols-outlined text-4xl text-violet-400 animate-pulse">code</span>
+            </div>
+        ),
+    }
+)
+
 interface Preview3DModalProps {
     wizard: UseOrderWizardReturn
 }
@@ -23,6 +37,8 @@ export function Preview3DModal({ wizard }: Preview3DModalProps) {
     if (!state.showPreviewModal || !state.file) {
         return null
     }
+
+    const isGcode = isGcodeFile(state.file)
 
     return (
         <div
@@ -36,12 +52,16 @@ export function Preview3DModal({ wizard }: Preview3DModalProps) {
                 {/* Modal Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
                     <div className="flex items-center gap-4">
-                        <div className="size-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                            <span className="material-symbols-outlined text-primary">view_in_ar</span>
+                        <div className={`size-10 rounded-lg flex items-center justify-center ${isGcode ? 'bg-violet-100' : 'bg-primary/10'}`}>
+                            <span className={`material-symbols-outlined ${isGcode ? 'text-violet-600' : 'text-primary'}`}>
+                                {isGcode ? 'code' : 'view_in_ar'}
+                            </span>
                         </div>
                         <div>
                             <h3 className="font-bold text-slate-900">{state.file.name}</h3>
-                            {state.modelDimensions && (
+                            {isGcode ? (
+                                <p className="text-xs text-violet-600 font-medium">G-code Toolpath Preview</p>
+                            ) : state.modelDimensions && (
                                 <p className="text-xs text-slate-500 font-mono">
                                     {state.modelDimensions.width} × {state.modelDimensions.height} × {state.modelDimensions.depth} mm
                                 </p>
@@ -57,11 +77,18 @@ export function Preview3DModal({ wizard }: Preview3DModalProps) {
                 </div>
 
                 {/* Modal Body - 3D Viewer */}
-                <div className="flex-1 bg-slate-50 p-4 min-h-[500px]">
-                    <Model3DViewer
-                        file={state.file}
-                        className="w-full h-full min-h-[480px] rounded-xl"
-                    />
+                <div className={`flex-1 p-4 min-h-[500px] ${isGcode ? 'bg-slate-900' : 'bg-slate-50'}`}>
+                    {isGcode ? (
+                        <Gcode3DViewer
+                            file={state.file}
+                            className="w-full h-full min-h-[480px] rounded-xl"
+                        />
+                    ) : (
+                        <Model3DViewer
+                            file={state.file}
+                            className="w-full h-full min-h-[480px] rounded-xl"
+                        />
+                    )}
                 </div>
 
                 {/* Modal Footer */}
@@ -75,6 +102,14 @@ export function Preview3DModal({ wizard }: Preview3DModalProps) {
                             <span className="material-symbols-outlined text-sm">zoom_in</span>
                             Scroll to zoom
                         </span>
+                        {isGcode && (
+                            <span className="flex items-center gap-2">
+                                <div className="w-3 h-0.5 bg-orange-400 rounded" />
+                                <span>Extrude</span>
+                                <div className="w-3 h-0.5 bg-cyan-400 rounded ml-2" />
+                                <span>Travel</span>
+                            </span>
+                        )}
                     </div>
                     <button
                         onClick={() => actions.setShowPreviewModal(false)}
