@@ -66,10 +66,10 @@ export function parseGcodeStats(gcode: string, material: string = 'pla'): GcodeP
 
     const lines = gcode.split('\n')
 
-    // Parse first 500 lines (header) and last 200 lines (config section)
+    // Parse first 500 lines (header) and last 500 lines (config section for PrusaSlicer)
     const linesToCheck = [
         ...lines.slice(0, 500),
-        ...lines.slice(-200)
+        ...lines.slice(-500)
     ]
 
     for (const line of linesToCheck) {
@@ -207,6 +207,36 @@ export function parseGcodeStats(gcode: string, material: string = 'pla'): GcodeP
         }
         // PrusaSlicer format: ; filament used [g] = 45.67
         if (trimmedLine.includes('filament used [g]')) {
+            const match = trimmedLine.match(/=\s*([\d.]+)/)
+            if (match) {
+                filamentGrams = parseFloat(match[1])
+            }
+        }
+        // PrusaSlicer format: ; filament used [cm3] = 12.34
+        if (trimmedLine.includes('filament used [cm3]') && filamentGrams === 0) {
+            const match = trimmedLine.match(/=\s*([\d.]+)/)
+            if (match) {
+                const volumeCm3 = parseFloat(match[1])
+                const density = MATERIAL_DENSITY[material] || 1.24
+                filamentGrams = volumeCm3 * density
+            }
+        }
+        // Alternative PrusaSlicer format: ; filament_used_mm = 1234.56
+        if (trimmedLine.includes('filament_used_mm') || trimmedLine.includes('filament used = ')) {
+            const match = trimmedLine.match(/=\s*([\d.]+)/)
+            if (match && filamentMm === 0) {
+                filamentMm = parseFloat(match[1])
+            }
+        }
+        // PrusaSlicer total filament: ; total filament used [g] = 45.67
+        if (trimmedLine.includes('total filament used')) {
+            const matchG = trimmedLine.match(/\[g\]\s*=\s*([\d.]+)/)
+            const matchMm = trimmedLine.match(/\[mm\]\s*=\s*([\d.]+)/)
+            if (matchG) filamentGrams = parseFloat(matchG[1])
+            if (matchMm && filamentMm === 0) filamentMm = parseFloat(matchMm[1])
+        }
+        // PrusaSlicer: ; filament_used_g = 45.67
+        if (trimmedLine.includes('filament_used_g')) {
             const match = trimmedLine.match(/=\s*([\d.]+)/)
             if (match) {
                 filamentGrams = parseFloat(match[1])

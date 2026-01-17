@@ -82,6 +82,15 @@ export function useOrderWizard() {
         setCurrentStep(prev => Math.max(1, prev - 1))
     }, [])
 
+    // Custom setFile that resets related state
+    const setFileWithReset = useCallback((newFile: File | null) => {
+        setFile(newFile)
+        // Reset slicing results and model dimensions when file changes
+        setSlicedResult(null)
+        setSlicingError(null)
+        setModelDimensions(null)
+    }, [])
+
     const searchNearestProvider = useCallback(async (lat: number, lng: number) => {
         setIsSearchingProvider(true)
         try {
@@ -349,7 +358,7 @@ export function useOrderWizard() {
             setCurrentStep,
             goNext,
             goBack,
-            setFile,
+            setFile: setFileWithReset, // Use wrapper that resets related state
             setModelDimensions,
             setSelectedMaterial,
             setSelectedQuality,
