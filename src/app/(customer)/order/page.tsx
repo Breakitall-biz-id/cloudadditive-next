@@ -6,6 +6,7 @@ import { ORDER_STEPS } from "@/types/order"
 import { OrderSidebar } from "@/components/order/OrderSidebar"
 import { OrderFooter } from "@/components/order/OrderFooter"
 import { Preview3DModal } from "@/components/order/Preview3DModal"
+import { AuthGate } from "@/components/order/AuthGate"
 import {
     StepUpload,
     StepConfigure,
@@ -59,8 +60,8 @@ export default function OrderPage() {
                     {ORDER_STEPS.map((step) => (
                         <div key={step.id} className="flex flex-col items-center gap-3 bg-slate-50 px-3">
                             <div className={`size-10 rounded-full flex items-center justify-center font-bold transition-all ${state.currentStep >= step.id
-                                    ? "bg-primary text-white shadow-[0_0_15px_rgba(249,115,22,0.4)]"
-                                    : "bg-slate-200 border border-slate-300 text-slate-400"
+                                ? "bg-primary text-white shadow-[0_0_15px_rgba(249,115,22,0.4)]"
+                                : "bg-slate-200 border border-slate-300 text-slate-400"
                                 }`}>
                                 <span className="material-symbols-outlined text-xl">{step.icon}</span>
                             </div>
@@ -81,8 +82,17 @@ export default function OrderPage() {
                         {state.currentStep === 2 && <StepConfigure wizard={wizard} />}
                         {state.currentStep === 3 && <StepDelivery wizard={wizard} />}
                         {state.currentStep === 4 && <StepCourier wizard={wizard} />}
-                        {state.currentStep === 5 && <StepReview wizard={wizard} />}
-                        {state.currentStep === 6 && <StepPayment wizard={wizard} />}
+                        {/* Steps 5 and 6 require authentication (Hybrid Flow) */}
+                        {state.currentStep === 5 && (
+                            <AuthGate>
+                                <StepReview wizard={wizard} />
+                            </AuthGate>
+                        )}
+                        {state.currentStep === 6 && (
+                            <AuthGate>
+                                <StepPayment wizard={wizard} />
+                            </AuthGate>
+                        )}
                     </section>
                 </div>
             </main>
@@ -95,3 +105,4 @@ export default function OrderPage() {
         </div>
     )
 }
+
