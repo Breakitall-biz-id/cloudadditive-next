@@ -26,17 +26,50 @@ export function StepConfigure({ wizard }: StepConfigureProps) {
 
             {/* G-code Info Banner */}
             {fileIsGcode && (
-                <div className="bg-violet-50 border border-violet-200 rounded-xl p-5 flex items-start gap-4">
-                    <div className="size-10 rounded-lg bg-violet-100 flex items-center justify-center flex-shrink-0">
-                        <span className="material-symbols-outlined text-violet-600">code</span>
+                <div className="bg-violet-50 border border-violet-200 rounded-xl p-5">
+                    <div className="flex items-start gap-4">
+                        <div className="size-10 rounded-lg bg-violet-100 flex items-center justify-center flex-shrink-0">
+                            <span className="material-symbols-outlined text-violet-600">code</span>
+                        </div>
+                        <div className="flex flex-col gap-1 flex-1">
+                            <p className="text-violet-900 font-bold">G-code File Detected</p>
+                            <p className="text-violet-600 text-sm">
+                                Print settings are embedded in your G-code. Just set the quantity below.
+                            </p>
+                        </div>
                     </div>
-                    <div className="flex flex-col gap-1">
-                        <p className="text-violet-900 font-bold">G-code File Detected</p>
-                        <p className="text-violet-600 text-sm">
-                            Print settings (material, layer height, infill) are already embedded in your G-code.
-                            Skip directly to quantity selection below.
-                        </p>
-                    </div>
+
+                    {/* Detected Settings */}
+                    {state.slicedResult && (
+                        <div className="mt-4 pt-4 border-t border-violet-200 grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            {state.slicedResult.material && (
+                                <div>
+                                    <p className="text-xs text-violet-500 uppercase font-medium">Material</p>
+                                    <p className="text-violet-900 font-bold uppercase">{state.slicedResult.material}</p>
+                                </div>
+                            )}
+                            {state.slicedResult.slicer && (
+                                <div>
+                                    <p className="text-xs text-violet-500 uppercase font-medium">Slicer</p>
+                                    <p className="text-violet-900 font-bold">{state.slicedResult.slicer}</p>
+                                </div>
+                            )}
+                            {state.slicedResult.printTimeMinutes > 0 && (
+                                <div>
+                                    <p className="text-xs text-violet-500 uppercase font-medium">Print Time</p>
+                                    <p className="text-violet-900 font-bold">
+                                        {Math.floor(state.slicedResult.printTimeMinutes / 60)}h {state.slicedResult.printTimeMinutes % 60}m
+                                    </p>
+                                </div>
+                            )}
+                            {state.slicedResult.filamentGrams > 0 && (
+                                <div>
+                                    <p className="text-xs text-violet-500 uppercase font-medium">Filament</p>
+                                    <p className="text-violet-900 font-bold">{state.slicedResult.filamentGrams.toFixed(1)}g</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -52,10 +85,10 @@ export function StepConfigure({ wizard }: StepConfigureProps) {
                             onClick={() => !fileIsGcode && actions.setSelectedMaterial(material.id)}
                             disabled={fileIsGcode}
                             className={`relative p-4 rounded-xl border-2 transition-all ${fileIsGcode
-                                    ? "border-slate-100 bg-slate-50 cursor-not-allowed"
-                                    : state.selectedMaterial === material.id
-                                        ? "border-primary bg-primary/5 shadow-lg shadow-primary/10"
-                                        : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                                ? "border-slate-100 bg-slate-50 cursor-not-allowed"
+                                : state.selectedMaterial === material.id
+                                    ? "border-primary bg-primary/5 shadow-lg shadow-primary/10"
+                                    : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
                                 }`}
                         >
                             {!fileIsGcode && state.selectedMaterial === material.id && (
@@ -82,10 +115,10 @@ export function StepConfigure({ wizard }: StepConfigureProps) {
                             onClick={() => !fileIsGcode && actions.setSelectedQuality(quality.id)}
                             disabled={fileIsGcode}
                             className={`relative p-4 rounded-xl border-2 transition-all ${fileIsGcode
-                                    ? "border-slate-100 bg-slate-50 cursor-not-allowed"
-                                    : state.selectedQuality === quality.id
-                                        ? "border-primary bg-primary/5 shadow-lg shadow-primary/10"
-                                        : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                                ? "border-slate-100 bg-slate-50 cursor-not-allowed"
+                                : state.selectedQuality === quality.id
+                                    ? "border-primary bg-primary/5 shadow-lg shadow-primary/10"
+                                    : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
                                 }`}
                         >
                             {!fileIsGcode && state.selectedQuality === quality.id && (

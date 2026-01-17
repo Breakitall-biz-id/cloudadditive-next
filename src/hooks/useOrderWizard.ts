@@ -68,6 +68,7 @@ export function useOrderWizard() {
         source: 'sliced' | 'uploaded'
         slicer?: string | null
         flavor?: string | null
+        material?: string | null  // Detected material from G-code
     } | null>(null)
 
     // UI State
@@ -161,6 +162,11 @@ export function useOrderWizard() {
                 // Create a local URL for the uploaded G-code
                 const gcodeUrl = URL.createObjectURL(file)
 
+                // Auto-select detected material if available
+                if (stats.material) {
+                    setSelectedMaterial(stats.material)
+                }
+
                 setSlicedResult({
                     printTimeMinutes: stats.printTimeMinutes,
                     filamentGrams: stats.filamentGrams,
@@ -169,6 +175,7 @@ export function useOrderWizard() {
                     source: 'uploaded',
                     slicer: stats.slicer,
                     flavor: stats.flavor,
+                    material: stats.material,
                 })
             } else {
                 // STL/OBJ file - send to slicer service
@@ -241,9 +248,11 @@ export function useOrderWizard() {
         defaultInfillPercentage: 0.20,
     }
 
-    // Get material data - for G-code, use PLA as default since material is embedded in file
+    // Get material data - for G-code, use detected material or PLA as fallback
     const fileIsGcode = file ? isGcodeFile(file) : false
-    const effectiveMaterial = fileIsGcode ? 'pla' : selectedMaterial
+    const effectiveMaterial = fileIsGcode
+        ? (slicedResult?.material || selectedMaterial || 'pla')
+        : selectedMaterial
     const materialData = effectiveMaterial
         ? ({
             pla: { pricePerGram: 250, density: 1.24 },

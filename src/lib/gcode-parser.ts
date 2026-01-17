@@ -11,6 +11,7 @@ export interface GcodeStats {
     layerCount: number
     flavor: string | null
     slicer: string | null
+    material: string | null  // Detected material type (pla, abs, petg, etc.)
 }
 
 export interface GcodeCompatibility {
@@ -53,6 +54,7 @@ export function parseGcodeStats(gcode: string, material: string = 'pla'): GcodeP
     let layerCount = 0
     let flavor: string | null = null
     let slicer: string | null = null
+    let detectedMaterial: string | null = null
 
     // Compatibility info
     let bedSizeX: number | null = null
@@ -102,6 +104,37 @@ export function parseGcodeStats(gcode: string, material: string = 'pla'): GcodeP
         if (trimmedLine.includes('gcode_flavor')) {
             const match = trimmedLine.match(/gcode_flavor\s*=\s*(\w+)/)
             if (match) flavor = match[1]
+        }
+
+        // === MATERIAL TYPE ===
+        // Cura format: ;MATERIAL:PLA or ;Filament type = PLA
+        if (trimmedLine.includes(';MATERIAL:')) {
+            const mat = trimmedLine.replace(';MATERIAL:', '').trim().toLowerCase()
+            if (['pla', 'abs', 'petg', 'tpu'].includes(mat)) detectedMaterial = mat
+        }
+        // PrusaSlicer format: ; filament_type = PLA
+        if (trimmedLine.includes('filament_type')) {
+            const match = trimmedLine.match(/filament_type\s*=\s*(\w+)/i)
+            if (match) {
+                const mat = match[1].toLowerCase()
+                if (['pla', 'abs', 'petg', 'tpu'].includes(mat)) detectedMaterial = mat
+            }
+        }
+        // Generic: ; material = PLA or ; filament = PLA
+        if ((trimmedLine.includes('material =') || trimmedLine.includes('filament =')) && !detectedMaterial) {
+            const match = trimmedLine.match(/(?:material|filament)\s*=\s*(\w+)/i)
+            if (match) {
+                const mat = match[1].toLowerCase()
+                if (['pla', 'abs', 'petg', 'tpu'].includes(mat)) detectedMaterial = mat
+            }
+        }
+        // Cura: ;Filament type: PLA
+        if (trimmedLine.includes('Filament type:') && !detectedMaterial) {
+            const match = trimmedLine.match(/Filament type:\s*(\w+)/i)
+            if (match) {
+                const mat = match[1].toLowerCase()
+                if (['pla', 'abs', 'petg', 'tpu'].includes(mat)) detectedMaterial = mat
+            }
         }
 
         // === BED SIZE ===
@@ -287,6 +320,7 @@ export function parseGcodeStats(gcode: string, material: string = 'pla'): GcodeP
         layerCount,
         flavor,
         slicer,
+        material: detectedMaterial,
         compatibility: {
             bedSizeX,
             bedSizeY,
