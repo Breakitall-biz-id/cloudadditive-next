@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react"
 import { useDropzone } from "react-dropzone"
 import type { UseOrderWizardReturn } from "@/hooks/useOrderWizard"
 import { isGcodeFile, parseGcodeFile, formatPrintTime, type GcodeParseResult } from "@/lib/gcode-parser"
-import { Gcode3DViewer } from "@/components/order/Gcode3DViewer"
 
 interface StepUploadProps {
     wizard: UseOrderWizardReturn
@@ -14,7 +13,6 @@ export function StepUpload({ wizard }: StepUploadProps) {
     const { state, actions } = wizard
     const [gcodePreview, setGcodePreview] = useState<GcodeParseResult | null>(null)
     const [isParsing, setIsParsing] = useState(false)
-    const [showPreview, setShowPreview] = useState(false)
 
     const onDrop = useCallback((acceptedFiles: File[]) => {
         if (acceptedFiles.length > 0) {
@@ -34,7 +32,6 @@ export function StepUpload({ wizard }: StepUploadProps) {
                 .finally(() => setIsParsing(false))
         } else {
             setGcodePreview(null)
-            setShowPreview(false)
         }
     }, [state.file])
 
@@ -206,27 +203,6 @@ export function StepUpload({ wizard }: StepUploadProps) {
                             </p>
                         </div>
                     </div>
-                </div>
-            )}
-
-            {/* G-code 3D Preview */}
-            {fileIsGcode && state.file && (
-                <div className="flex flex-col gap-3">
-                    <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Toolpath Preview</h4>
-                        <button
-                            onClick={() => setShowPreview(!showPreview)}
-                            className="text-xs font-bold text-violet-600 hover:text-violet-700 flex items-center gap-1"
-                        >
-                            <span className="material-symbols-outlined text-sm">
-                                {showPreview ? 'visibility_off' : 'visibility'}
-                            </span>
-                            {showPreview ? 'Hide Preview' : 'Show Preview'}
-                        </button>
-                    </div>
-                    {showPreview && (
-                        <Gcode3DViewer file={state.file} className="h-[350px]" />
-                    )}
                 </div>
             )}
 

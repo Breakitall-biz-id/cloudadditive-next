@@ -4,6 +4,7 @@ import { useMemo, useCallback } from "react"
 import dynamic from "next/dynamic"
 import type { UseOrderWizardReturn } from "@/hooks/useOrderWizard"
 import { MATERIALS, QUALITIES } from "@/types/order"
+import { isGcodeFile } from "@/lib/gcode-parser"
 
 // Dynamic import Model3DViewer
 const Model3DViewer = dynamic(() => import("@/components/order/Model3DViewer"), {
@@ -14,6 +15,19 @@ const Model3DViewer = dynamic(() => import("@/components/order/Model3DViewer"), 
         </div>
     ),
 })
+
+// Dynamic import Gcode3DViewer
+const Gcode3DViewer = dynamic(
+    () => import("@/components/order/Gcode3DViewer").then(mod => ({ default: mod.Gcode3DViewer })),
+    {
+        ssr: false,
+        loading: () => (
+            <div className="w-full h-full bg-gradient-to-br from-violet-900 to-slate-900 flex items-center justify-center">
+                <span className="material-symbols-outlined text-4xl text-violet-400 animate-pulse">code</span>
+            </div>
+        ),
+    }
+)
 
 interface OrderSidebarProps {
     wizard: UseOrderWizardReturn
@@ -29,6 +43,8 @@ export function OrderSidebar({ wizard }: OrderSidebarProps) {
         state.file.name.toLowerCase().endsWith('.stl') ||
         state.file.name.toLowerCase().endsWith('.obj')
     )
+
+    const isGcode = state.file ? isGcodeFile(state.file) : false
 
     // Memoize the callback to prevent re-renders
     const handleModelLoad = useCallback((info: { width: number; height: number; depth: number; volume: number }) => {
@@ -55,7 +71,9 @@ export function OrderSidebar({ wizard }: OrderSidebarProps) {
                 {/* Preview */}
                 <div className="flex flex-col gap-4">
                     <div
-                        className={`aspect-square w-full rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center relative overflow-hidden ${is3DFile ? 'cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all' : ''}`}
+                        className={`aspect-square w-full rounded-lg border border-slate-200 flex items-center justify-center relative overflow-hidden ${is3DFile ? 'bg-slate-100 cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all' :
+                                isGcode ? 'bg-slate-900' : 'bg-slate-100'
+                            }`}
                         onClick={() => {
                             if (is3DFile) {
                                 actions.setShowPreviewModal(true)
@@ -82,12 +100,18 @@ export function OrderSidebar({ wizard }: OrderSidebarProps) {
                                     </span>
                                 )}
                             </>
+                        ) : isGcode && state.file ? (
+                            <>
+                                <Gcode3DViewer file={state.file} className="w-full h-full" />
+                                <span className="absolute top-2 right-2 px-2 py-0.5 bg-violet-600 text-white text-[10px] font-bold uppercase rounded">
+                                    G-CODE
+                                </span>
+                            </>
                         ) : state.file ? (
                             <>
                                 <div className="w-full h-full bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center">
                                     <span className="material-symbols-outlined text-6xl text-slate-400">description</span>
                                 </div>
-                                <span className="absolute bottom-3 left-3 text-[10px] font-mono text-slate-400 bg-white/80 px-1.5 rounded">GCODE</span>
                             </>
                         ) : (
                             <span className="material-symbols-outlined text-4xl text-slate-300">image</span>
@@ -96,7 +120,13 @@ export function OrderSidebar({ wizard }: OrderSidebarProps) {
                     <div className="flex flex-col gap-1">
                         <p className="text-slate-900 font-bold truncate">{state.file?.name || "No file selected"}</p>
                         <p className="text-xs text-slate-500">
-                            {state.selectedMaterial ? MATERIALS.find(m => m.id === state.selectedMaterial)?.name : "—"} • {state.selectedQuality ? QUALITIES.find(q => q.id === state.selectedQuality)?.name : "—"}
+                            {isGcode ? (
+                                <span className="text-violet-600 font-medium">G-code • Pre-sliced</span>
+                            ) : (
+                                <>
+                                    {state.selectedMaterial ? MATERIALS.find(m => m.id === state.selectedMaterial)?.name : "—"} • {state.selectedQuality ? QUALITIES.find(q => q.id === state.selectedQuality)?.name : "—"}
+                                </>
+                            )}
                         </p>
                     </div>
                 </div>
