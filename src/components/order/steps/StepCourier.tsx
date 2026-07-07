@@ -5,22 +5,24 @@ import type { UseOrderWizardReturn } from "@/hooks/useOrderWizard"
 
 interface StepCourierProps {
     wizard: UseOrderWizardReturn
-    // Provider's coordinates (for now hardcoded, later from selected provider)
-    originLatitude?: number
-    originLongitude?: number
 }
 
-// Default origin: Jakarta area (for demo)
-export function StepCourier({
-    wizard,
-    originLatitude = -6.2088,
-    originLongitude = 106.8456
-}: StepCourierProps) {
+export function StepCourier({ wizard }: StepCourierProps) {
     const { state, actions } = wizard
 
-    // Fetch rates when component mounts or destination changes
+    // Get origin coordinates from selected printer's provider
+    const originLatitude = state.selectedPrinter?.coordinates?.lat
+    const originLongitude = state.selectedPrinter?.coordinates?.lng
+
+    // Fetch rates when component mounts or when we have valid coordinates
     useEffect(() => {
-        if (state.customerCoords && !state.courierRates.length && !state.isLoadingRates) {
+        if (
+            state.customerCoords &&
+            originLatitude &&
+            originLongitude &&
+            !state.courierRates.length &&
+            !state.isLoadingRates
+        ) {
             actions.fetchCourierRates(
                 originLatitude,
                 originLongitude,
@@ -60,7 +62,7 @@ export function StepCourier({
                         </p>
                         <button
                             onClick={() => {
-                                if (state.customerCoords) {
+                                if (state.customerCoords && originLatitude && originLongitude) {
                                     actions.fetchCourierRates(
                                         originLatitude,
                                         originLongitude,

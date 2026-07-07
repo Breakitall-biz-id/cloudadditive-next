@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
         const formData = await request.formData()
         const stlFile = formData.get("stl") as File
         const material = formData.get("material") as string || "pla"
-        const quality = formData.get("quality") as string || "standard"
+        const quality = formData.get("quality") as string || "normal"
         const infill = formData.get("infill") as string || "0.20"
 
         if (!stlFile) {

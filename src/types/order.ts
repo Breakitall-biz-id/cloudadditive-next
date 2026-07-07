@@ -33,10 +33,11 @@ export interface Area {
 export interface Provider {
     id: string
     businessName: string
-    ownerName: string
+    ownerName?: string
     distance: number
     distanceUnit: string
     isWithinRadius: boolean
+    serviceRadius: number
     rating: number
     totalOrders: number
     isVerified: boolean
@@ -45,6 +46,7 @@ export interface Provider {
     queueEstimate: number
     city: string
     province: string
+    coordinates?: { lat: number; lng: number }
 }
 
 export interface ModelDimensions {
@@ -183,9 +185,8 @@ export const COLORS: Color[] = [
 
 export const QUALITIES: Quality[] = [
     { id: "draft", name: "Draft (0.3mm)", multiplier: 0.8, layerHeight: 0.3 },
-    { id: "standard", name: "Standard (0.2mm)", multiplier: 1.0, layerHeight: 0.2 },
-    { id: "high", name: "High (0.12mm)", multiplier: 1.3, layerHeight: 0.12 },
-    { id: "ultra", name: "Ultra (0.08mm)", multiplier: 1.6, layerHeight: 0.08 },
+    { id: "normal", name: "Normal (0.2mm)", multiplier: 1.0, layerHeight: 0.2 },
+    { id: "fine", name: "Fine (0.1mm)", multiplier: 1.3, layerHeight: 0.1 },
 ]
 
 export const COURIERS: Courier[] = [

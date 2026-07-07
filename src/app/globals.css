@@ -10,12 +10,14 @@
   --font-mono: var(--font-jetbrains-mono);
   --font-display: var(--font-inter);
 
-  /* CloudAdditive Brand Colors - 3D Printing Orange */
-  --color-primary: #F97316;
-  --color-cyber-violet: #EA580C;
-  --color-electric-indigo: #FB923C;
+  /* CloudAdditive Brand Colors - Stitch Teal/Emerald Theme */
+  --color-primary: #004D4D;
+  --color-primary-teal: #004D4D;
+  --color-emerald-green: #10B981;
+  --color-bg-gray: #F9FAFB;
   --color-slate-900: #0F172A;
   --color-slate-500: #64748B;
+  --color-slate-400: #94A3B8;
   --color-slate-200: #E2E8F0;
   --color-slate-100: #F1F5F9;
   --color-slate-50: #F8FAFC;
@@ -59,13 +61,16 @@
 
 :root {
   --radius: 0.625rem;
+  --font-inter: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-jetbrains-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  /* CloudAdditive Brand - Teal */
+  --primary: #004D4D;
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -99,7 +104,8 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
+  /* CloudAdditive Brand - Light Teal for Dark Mode */
+  --primary: #2DD4BF;
   --primary-foreground: oklch(0.205 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
@@ -155,7 +161,7 @@
 }
 
 .dotted-connector {
-  background-image: radial-gradient(circle, #F97316 1px, transparent 1px);
+  background-image: radial-gradient(circle, #004D4D 1px, transparent 1px);
   background-size: 12px 12px;
   background-repeat: repeat-x;
   height: 2px;
@@ -168,4 +174,69 @@
 
 .font-mono {
   font-family: var(--font-jetbrains-mono), monospace;
+}
+
+/* Dashboard Custom Styles */
+.card-shadow {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+}
+
+.active-dot {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: .5;
+    transform: scale(1.2);
+  }
+}
+
+/* Stitch Theme Specific Styles */
+.hero-gradient {
+  background: linear-gradient(135deg, #004D4D 0%, #003333 100%);
+}
+
+.stitch-card {
+  @apply bg-white rounded-2xl border border-slate-200;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+}
+
+.material-symbols-outlined.filled {
+  font-variation-settings: 'FILL' 1;
+}
+
+/* Donut Chart */
+.donut-ring {
+  stroke-dasharray: 100 0;
+  stroke: #f1f5f9;
+}
+
+.donut-segment-1 {
+  stroke-dasharray: 45 55;
+  stroke: #004D4D;
+  stroke-dashoffset: 0;
+}
+
+.donut-segment-2 {
+  stroke-dasharray: 30 70;
+  stroke: #10B981;
+  stroke-dashoffset: -45;
+}
+
+.donut-segment-3 {
+  stroke-dasharray: 25 75;
+  stroke: #94a3b8;
+  stroke-dashoffset: -75;
 }

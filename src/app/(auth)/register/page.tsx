@@ -152,6 +152,8 @@ function RegisterForm() {
                         <p className="text-slate-500">Daftar gratis dan mulai mencetak hari ini.</p>
                     </div>
 
+
+
                     {/* Social Login */}
                     <div className="grid grid-cols-1 gap-4 mb-8">
                         <button
@@ -305,7 +307,7 @@ function RegisterForm() {
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     )
 }
 

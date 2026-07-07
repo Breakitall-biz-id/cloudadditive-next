@@ -2,15 +2,9 @@
 
 import { useState, useCallback, useEffect } from "react"
 import type {
-    OrderWizardState,
-    OrderWizardActions,
-    OrderWizardComputed,
     Area,
     Provider,
     ModelDimensions,
-    ORDER_STEPS,
-    MATERIALS,
-    QUALITIES,
 } from "@/types/order"
 import { parseGcodeFile, isGcodeFile, type GcodeStats } from "@/lib/gcode-parser"
 
@@ -31,6 +25,8 @@ export function useOrderWizard() {
     const [quantity, setQuantity] = useState(1)
 
     // Step 3: Delivery
+    const [addressMode, setAddressMode] = useState<'saved' | 'new'>('new')
+    const [selectedSavedAddressId, setSelectedSavedAddressId] = useState<string | null>(null)
     const [recipientName, setRecipientName] = useState("")
     const [recipientPhone, setRecipientPhone] = useState("")
     const [detailAddress, setDetailAddress] = useState("")
@@ -39,6 +35,32 @@ export function useOrderWizard() {
     const [nearestProvider, setNearestProvider] = useState<Provider | null>(null)
     const [isSearchingProvider, setIsSearchingProvider] = useState(false)
     const [mapsLoaded, setMapsLoaded] = useState(false)
+
+    // Step 3: Printer Pre-Check
+    const [selectedPrinter, setSelectedPrinter] = useState<{
+        printerId: string
+        printerName: string
+        providerId: string
+        providerName: string
+        providerCity: string
+        providerProvince: string
+        isVerified: boolean
+        coordinates: { lat: number; lng: number }
+        score: number
+        canPrintImmediately: boolean
+        queuedOrders: number
+        status: string
+        breakdown?: {
+            distanceScore: number
+            distanceKm: number
+            queueTimeScore: number
+            queueTimeMinutes: number
+            materialMatchScore: number
+            materialMatch: boolean
+        }
+    } | null>(null)
+    const [printerSearchError, setPrinterSearchError] = useState<string | null>(null)
+    const [isSearchingPrinter, setIsSearchingPrinter] = useState(false)
 
     // Step 4: Courier
     const [selectedCourier, setSelectedCourier] = useState<string | null>(null)
@@ -110,6 +132,98 @@ export function useOrderWizard() {
             setIsSearchingProvider(false)
         }
     }, [selectedMaterial])
+
+    // Find best printer BEFORE order creation (for accurate shipping cost)
+    const findBestPrinterPreCheck = useCallback(async (lat: number, lng: number) => {
+        setIsSearchingPrinter(true)
+        setPrinterSearchError(null)
+        setSelectedPrinter(null)
+
+        try {
+            const response = await fetch("/api/orders/pre-check", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    materialId: selectedMaterial,
+                    modelWidth: modelDimensions?.width,
+                    modelHeight: modelDimensions?.height,
+                    modelDepth: modelDimensions?.depth,
+                    customerLat: lat,
+                    customerLng: lng,
+                    estimatedPrintTime: slicedResult?.printTimeMinutes,
+                }),
+            })
+            const data = await response.json()
+
+            if (data.success && data.bestPrinter) {
+                setSelectedPrinter(data.bestPrinter)
+                // Also set nearestProvider for backward compatibility
+                setNearestProvider({
+                    id: data.bestPrinter.providerId,
+                    businessName: data.bestPrinter.providerName,
+                    distance: data.bestPrinter.breakdown?.distanceKm || 0,
+                    distanceUnit: "km",
+                    isWithinRadius: true,
+                    serviceRadius: 50,
+                    rating: 0,
+                    totalOrders: 0,
+                    isVerified: data.bestPrinter.isVerified,
+                    availablePrinters: 1,
+                    totalPrinters: 1,
+                    queueEstimate: data.bestPrinter.queuedOrders * 30,
+                    city: data.bestPrinter.providerCity,
+                    province: data.bestPrinter.providerProvince,
+                    coordinates: data.bestPrinter.coordinates,
+                })
+            } else {
+                setPrinterSearchError(data.error || "No compatible printers found")
+                setNearestProvider(null)
+            }
+        } catch (error) {
+            console.error("Printer pre-check error:", error)
+            setPrinterSearchError("Failed to check printer availability")
+        } finally {
+            setIsSearchingPrinter(false)
+        }
+    }, [selectedMaterial, modelDimensions, slicedResult])
+
+    // Select saved address and auto-fill delivery fields
+    const selectSavedAddress = useCallback((address: {
+        id: string
+        label: string
+        recipientName: string
+        phone: string
+        street: string
+        city: string
+        province: string
+        postalCode: string
+        latitude: number | null
+        longitude: number | null
+    }) => {
+        setSelectedSavedAddressId(address.id)
+        setRecipientName(address.recipientName)
+        setRecipientPhone(address.phone)
+        setDetailAddress(address.street)
+
+        // Reconstruct Area object from address data
+        setSelectedArea({
+            id: `${address.city}-${address.postalCode}`,
+            name: address.city,
+            postalCode: address.postalCode,
+            administrativeLevel: {
+                country: 'Indonesia',
+                province: address.province,
+                city: address.city,
+                district: '', // Not stored in address
+            },
+        })
+
+        // Set coordinates and trigger printer search
+        if (address.latitude && address.longitude) {
+            setCustomerCoords({ lat: address.latitude, lng: address.longitude })
+            findBestPrinterPreCheck(address.latitude, address.longitude)
+        }
+    }, [findBestPrinterPreCheck])
 
     // Fetch courier rates from Biteship using lat/lng
     const fetchCourierRates = useCallback(async (
@@ -232,7 +346,7 @@ export function useOrderWizard() {
         switch (currentStep) {
             case 1: return file !== null
             case 2: return fileIsGcode || (selectedMaterial && selectedQuality)  // G-code skips material/quality
-            case 3: return selectedArea && recipientName && recipientPhone
+            case 3: return selectedArea && recipientName && recipientPhone && selectedPrinter !== null
             case 4: return selectedCourier !== null
             default: return true
         }
@@ -248,11 +362,9 @@ export function useOrderWizard() {
         defaultInfillPercentage: 0.20,
     }
 
-    // Get material data - for G-code, use detected material or PLA as fallback
+    // Get material data - for G-code, use selected material (which defaults to detected) or fallback
     const fileIsGcode = file ? isGcodeFile(file) : false
-    const effectiveMaterial = fileIsGcode
-        ? (slicedResult?.material || selectedMaterial || 'pla')
-        : selectedMaterial
+    const effectiveMaterial = selectedMaterial || 'pla'
     const materialData = effectiveMaterial
         ? ({
             pla: { pricePerGram: 250, density: 1.24 },
@@ -262,11 +374,11 @@ export function useOrderWizard() {
         } as Record<string, { pricePerGram: number; density: number }>)[effectiveMaterial]
         : null
 
-    // Get quality multiplier - for G-code, use standard since quality is embedded
+    // Get quality multiplier - for G-code, use normal (1.0x) since quality is embedded
     const qualityMultiplier = fileIsGcode
         ? 1.0
         : selectedQuality
-            ? ({ draft: 0.8, standard: 1.0, high: 1.3, ultra: 1.6 } as Record<string, number>)[selectedQuality] || 1.0
+            ? ({ draft: 0.8, normal: 1.0, fine: 1.3 } as Record<string, number>)[selectedQuality] || 1.0
             : 1.0
 
     // Calculate costs - prioritize slicedResult data if available
@@ -345,6 +457,8 @@ export function useOrderWizard() {
             selectedQuality,
             selectedColor,
             quantity,
+            addressMode,
+            selectedSavedAddressId,
             recipientName,
             recipientPhone,
             detailAddress,
@@ -353,6 +467,9 @@ export function useOrderWizard() {
             nearestProvider,
             isSearchingProvider,
             mapsLoaded,
+            selectedPrinter,
+            printerSearchError,
+            isSearchingPrinter,
             selectedCourier,
             courierRates,
             isLoadingRates,
@@ -373,6 +490,8 @@ export function useOrderWizard() {
             setSelectedQuality,
             setSelectedColor,
             setQuantity,
+            setAddressMode,
+            selectSavedAddress,
             setRecipientName,
             setRecipientPhone,
             setDetailAddress,
@@ -382,6 +501,7 @@ export function useOrderWizard() {
             setIsSearchingProvider,
             setMapsLoaded,
             searchNearestProvider,
+            findBestPrinterPreCheck,
             setSelectedCourier,
             fetchCourierRates,
             sliceModel,

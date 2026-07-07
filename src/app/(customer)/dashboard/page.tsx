@@ -1,165 +1,145 @@
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-    Package,
-    Clock,
-    CheckCircle,
-    Plus,
-    Printer,
-    ArrowRight
-} from "lucide-react"
+import { WelcomeSection } from "@/components/dashboard/WelcomeSection"
+import { OrderTimeline } from "@/components/dashboard/OrderTimeline"
+import { ActivePrints } from "@/components/dashboard/ActivePrints"
+import { OrderHistory } from "@/components/dashboard/OrderHistory"
+import { StatsCards } from "@/components/dashboard/StatsCards"
+import { ProviderBanner } from "@/components/dashboard/ProviderBanner"
+import { OrderStatus } from "@prisma/client"
+import { OrderService } from "@/services/order"
+
+export const dynamic = 'force-dynamic'
+
+const STATUS_LABELS: Record<OrderStatus, string> = {
+    PENDING_PAYMENT: "Pending Payment",
+    PAYMENT_FAILED: "Payment Failed",
+    CONFIRMED: "Confirmed",
+    IN_QUEUE: "In Queue",
+    SLICING: "Slicing",
+    PRINTING: "Printing",
+    POST_PROCESSING: "Post Processing",
+    PACKING: "Packing",
+    SHIPPED: "Shipped",
+    DELIVERED: "Delivered",
+    COMPLETED: "Completed",
+    CANCELLED: "Cancelled",
+    REFUNDED: "Refunded",
+}
+
+const STATUS_COLORS: Record<OrderStatus, string> = {
+    PENDING_PAYMENT: "bg-amber-100 text-amber-800",
+    PAYMENT_FAILED: "bg-red-100 text-red-800",
+    CONFIRMED: "bg-blue-100 text-blue-800",
+    IN_QUEUE: "bg-indigo-100 text-indigo-800",
+    SLICING: "bg-purple-100 text-purple-800",
+    PRINTING: "bg-emerald-100 text-emerald-800",
+    POST_PROCESSING: "bg-orange-100 text-orange-800",
+    PACKING: "bg-green-100 text-green-800",
+    SHIPPED: "bg-amber-100 text-amber-800",
+    DELIVERED: "bg-emerald-100 text-emerald-800",
+    COMPLETED: "bg-emerald-100 text-emerald-800",
+    CANCELLED: "bg-slate-100 text-slate-600",
+    REFUNDED: "bg-rose-100 text-rose-700",
+}
+
+const formatDateTime = (date: Date) =>
+    date.toLocaleDateString("en-US", { month: "short", day: "numeric" }) +
+    ", " +
+    date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })
 
 export default async function DashboardPage() {
     const session = await auth()
 
+    // Auth check is also handled in layout, but double check is fine or can be removed if strictly relying on layout/middleware
     if (!session) {
         redirect("/login")
     }
 
-    // Redirect based on role
-    if (session.user.role === "ADMIN") {
-        redirect("/admin/dashboard")
-    } else if (session.user.role === "PROVIDER") {
-        redirect("/provider/dashboard")
-    }
+    const userId = session.user.id
+
+    const [stats, activeOrder, allOrders] = await Promise.all([
+        OrderService.getOrderStats(userId),
+        OrderService.getActiveOrder(userId),
+        OrderService.getUserOrders(userId),
+    ])
+
+    const historyStatuses: OrderStatus[] = [
+        OrderStatus.COMPLETED,
+        OrderStatus.DELIVERED,
+        OrderStatus.SHIPPED,
+        OrderStatus.CANCELLED,
+        OrderStatus.REFUNDED,
+    ]
+
+    const historyOrders = allOrders
+        .filter(o => historyStatuses.includes(o.status))
+        .slice(0, 10)
+
+    const historyItems = historyOrders.map(o => ({
+        id: `#${o.orderNumber}`,
+        date: new Date(o.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+        project: o.stlFileName || "Untitled Project",
+        status: STATUS_LABELS[o.status],
+        total: Number(o.totalPrice).toLocaleString("id-ID"),
+        statusColor: STATUS_COLORS[o.status],
+    }))
+
+    const timelineItems = (() => {
+        if (!activeOrder) return []
+        const history = [...activeOrder.statusHistory]
+            .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+            .slice(-4)
+
+        if (history.length === 0) {
+            return [{
+                status: "current" as const,
+                title: STATUS_LABELS[activeOrder.status],
+                time: formatDateTime(activeOrder.createdAt),
+            }]
+        }
+
+        return history.map((h, idx) => ({
+            status: idx === history.length - 1 ? "current" as const : "completed" as const,
+            title: STATUS_LABELS[h.status],
+            time: formatDateTime(h.createdAt),
+        }))
+    })()
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
-            {/* Header */}
-            <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur-xl sticky top-0 z-50">
-                <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-                    <div className="flex h-16 items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                                <Printer className="h-5 w-5 text-white" />
-                            </div>
-                            <span className="text-xl font-bold text-white">CloudAdditive</span>
-                        </div>
+        <div className="space-y-8">
+            {/* Provider Banner */}
+            <ProviderBanner />
 
-                        <div className="flex items-center gap-4">
-                            <span className="text-sm text-slate-400">
-                                Halo, <span className="text-white">{session.user.name}</span>
-                            </span>
-                            <form action={async () => {
-                                "use server"
-                                const { signOut } = await import("@/lib/auth")
-                                await signOut({ redirectTo: "/" })
-                            }}>
-                                <Button variant="ghost" size="sm" className="text-slate-400 hover:text-white">
-                                    Keluar
-                                </Button>
-                            </form>
-                        </div>
-                    </div>
+            {/* Hero Section: Welcome + Timeline */}
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                <div className="xl:col-span-2 h-full">
+                    <WelcomeSection
+                        name={session.user.name ?? "User"}
+                        activeCount={stats.active}
+                    />
                 </div>
-            </header>
-
-            <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-                {/* Welcome Card */}
-                <Card className="mb-8 bg-gradient-to-r from-indigo-600/20 to-purple-600/20 border-indigo-500/30">
-                    <CardContent className="flex items-center justify-between p-6">
-                        <div>
-                            <h1 className="text-2xl font-bold text-white mb-2">
-                                Selamat datang, {session.user.name}! 👋
-                            </h1>
-                            <p className="text-slate-400">
-                                Siap untuk mencetak ide Anda? Mulai order 3D print sekarang.
-                            </p>
-                        </div>
-                        <Link href="/order">
-                            <Button className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white border-0">
-                                <Plus className="mr-2 h-4 w-4" />
-                                Order Baru
-                            </Button>
-                        </Link>
-                    </CardContent>
-                </Card>
-
-                {/* Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-                    <Card className="bg-slate-900/50 border-slate-800">
-                        <CardContent className="p-6">
-                            <div className="flex items-center gap-4">
-                                <div className="h-12 w-12 rounded-xl bg-yellow-500/20 flex items-center justify-center">
-                                    <Clock className="h-6 w-6 text-yellow-400" />
-                                </div>
-                                <div>
-                                    <p className="text-sm text-slate-400">Dalam Proses</p>
-                                    <p className="text-2xl font-bold text-white">0</p>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="bg-slate-900/50 border-slate-800">
-                        <CardContent className="p-6">
-                            <div className="flex items-center gap-4">
-                                <div className="h-12 w-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                                    <Package className="h-6 w-6 text-blue-400" />
-                                </div>
-                                <div>
-                                    <p className="text-sm text-slate-400">Dikirim</p>
-                                    <p className="text-2xl font-bold text-white">0</p>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="bg-slate-900/50 border-slate-800">
-                        <CardContent className="p-6">
-                            <div className="flex items-center gap-4">
-                                <div className="h-12 w-12 rounded-xl bg-green-500/20 flex items-center justify-center">
-                                    <CheckCircle className="h-6 w-6 text-green-400" />
-                                </div>
-                                <div>
-                                    <p className="text-sm text-slate-400">Selesai</p>
-                                    <p className="text-2xl font-bold text-white">0</p>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
+                <div className="h-full">
+                    <OrderTimeline
+                        items={timelineItems}
+                        isLive={!!activeOrder}
+                    />
                 </div>
+            </div>
 
-                {/* Recent Orders */}
-                <Card className="bg-slate-900/50 border-slate-800">
-                    <CardHeader>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <CardTitle className="text-white">Order Terbaru</CardTitle>
-                                <CardDescription className="text-slate-400">
-                                    Daftar order 3D print Anda
-                                </CardDescription>
-                            </div>
-                            <Link href="/orders">
-                                <Button variant="ghost" size="sm" className="text-indigo-400 hover:text-indigo-300">
-                                    Lihat Semua
-                                    <ArrowRight className="ml-2 h-4 w-4" />
-                                </Button>
-                            </Link>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="flex flex-col items-center justify-center py-12 text-center">
-                            <div className="h-16 w-16 rounded-full bg-slate-800 flex items-center justify-center mb-4">
-                                <Package className="h-8 w-8 text-slate-600" />
-                            </div>
-                            <h3 className="text-lg font-medium text-white mb-2">Belum ada order</h3>
-                            <p className="text-slate-400 text-sm mb-4">
-                                Mulai order pertama Anda sekarang
-                            </p>
-                            <Link href="/order">
-                                <Button className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white border-0">
-                                    <Plus className="mr-2 h-4 w-4" />
-                                    Buat Order
-                                </Button>
-                            </Link>
-                        </div>
-                    </CardContent>
-                </Card>
-            </main>
+            {/* Active Prints Section */}
+            <ActivePrints />
+
+            {/* Order History Section */}
+            <OrderHistory items={historyItems} />
+
+            {/* Stats Overview */}
+            <StatsCards
+                totalOrders={stats.total}
+                totalSpent={stats.totalSpent}
+                activePrints={stats.active}
+                completedOrders={stats.completed}
+            />
         </div>
     )
 }

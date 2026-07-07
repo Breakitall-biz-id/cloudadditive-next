@@ -13,14 +13,17 @@ datasource db {
 // ==================== AUTH & USERS ====================
 
 model User {
-  id              String    @id @default(cuid())
-  email           String    @unique
-  emailVerified   DateTime?
-  passwordHash    String?
-  name            String
-  phone           String?
-  avatarUrl       String?
-  role            Role      @default(CUSTOMER)
+  id                    String    @id @default(cuid())
+  email                 String    @unique
+  emailVerified         DateTime?
+  passwordHash          String?
+  passwordResetToken    String?   @unique
+  passwordResetExpires  DateTime?
+  name                  String
+  phone                 String?
+  avatarUrl             String?
+  twoFactorEnabled      Boolean   @default(false)
+  role                  Role      @default(CUSTOMER)
   
   // Relations
   provider        Provider?
@@ -28,12 +31,39 @@ model User {
   addresses       Address[]
   accounts        Account[]
   sessions        Session[]
+  notificationSettings UserNotificationSettings?
   
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   
   @@index([email])
   @@index([role])
+}
+
+model UserNotificationSettings {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  emailEnabled      Boolean  @default(true)
+
+  orderConfirmed    Boolean  @default(true)
+  printStarted      Boolean  @default(true)
+  printCompleted    Boolean  @default(true)
+  shippingUpdate    Boolean  @default(true)
+
+  paymentSuccess    Boolean  @default(true)
+  paymentReminder   Boolean  @default(true)
+  refund            Boolean  @default(true)
+
+  promo             Boolean  @default(false)
+  newsletter        Boolean  @default(false)
+  productUpdate     Boolean  @default(true)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([userId])
 }
 
 enum Role {
@@ -113,19 +143,30 @@ model Provider {
   description     String?   @db.Text
   logoUrl         String?
   
+  // Business Details
+  businessType        String?           // "Individual", "CV/PT", "Enterprise"
+  businessNumber      String?           // NIB (Nomor Induk Berusaha)
+  
   // Location
   street          String?   @db.Text
   city            String
   province        String
-  latitude        Float
-  longitude       Float
-  serviceRadius   Int       @default(100)
+  postalCode      String?
+  latitude        Float?
+  longitude       Float?
   
-  // Status
+  // Capabilities
+  primaryTechnology   String?           // FDM, SLA, MJF, etc.
+  supportedMaterials  Json?             // ["PLA", "PETG", "ABS", ...]
+  
+  // Bank Account (for payouts)
+  bankName            String?
+  bankAccountNumber   String?
+  bankAccountName     String?           // Name on account
+  
+  // Verification
   isVerified      Boolean   @default(false)
-  isActive        Boolean   @default(true)
-  rating          Float     @default(0)
-  totalOrders     Int       @default(0)
+  verifiedAt      DateTime?
   
   // Relations
   printers        Printer[]
@@ -134,39 +175,49 @@ model Provider {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   
-  @@index([city])
-  @@index([isVerified, isActive])
+  @@index([userId])
+  @@index([isVerified])
 }
 
 model Printer {
-  id              String        @id @default(cuid())
+  id              String    @id @default(cuid())
   providerId      String
-  provider        Provider      @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  provider        Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade)
   
   name            String
   model           String?
-  technology      PrintTech     @default(FDM)
+  technology      PrintTech @default(FDM)
   
-  // Build volume (mm)
-  buildWidth      Int
-  buildDepth      Int  
-  buildHeight     Int
+  // Build Volume (mm)
+  buildWidth      Int       @default(220)
+  buildDepth      Int       @default(220)
+  buildHeight     Int       @default(250)
   
-  // Supported materials (many-to-many)
-  materials       PrinterMaterial[]
-  
-  // OctoPrint connection
+  // Connection (Pusher-based)
+  connectionToken String?   @unique
   octoprintUrl    String?
   octoprintApiKey String?
-  tunnelUsername  String?
-  tunnelPassword  String?
+  webcamUrl       String?
   
   // Status
   status          PrinterStatus @default(OFFLINE)
   lastSeenAt      DateTime?
   currentJobId    String?
+  lastTemperatures Json?       // Last known temperatures (hotend, bed)
+  lastJobInfo     Json?        // Last known job info (filename, progress, timeRemaining)
   
-  // Queue
+  // Auto-dispatch: Current filament loaded
+  currentMaterialId   String?
+  currentMaterial     Material? @relation("LoadedMaterial", fields: [currentMaterialId], references: [id])
+  
+  // Auto-dispatch: Readiness toggle
+  isAcceptingOrders   Boolean   @default(false)
+  
+  // Preprocessing time buffer (minutes) after each print
+  preprocessingTime   Int       @default(10)
+  
+  // Relations
+  materials       PrinterMaterial[]
   orders          Order[]
   
   createdAt       DateTime      @default(now())
@@ -174,6 +225,7 @@ model Printer {
   
   @@index([providerId])
   @@index([status])
+  @@index([connectionToken])
 }
 
 enum PrintTech {
@@ -219,6 +271,9 @@ model Material {
   
   // Orders using this material
   orders          Order[]
+  
+  // Printers currently loaded with this material
+  loadedInPrinters Printer[] @relation("LoadedMaterial")
   
   isActive        Boolean   @default(true)
   createdAt       DateTime  @default(now())
@@ -444,4 +499,3 @@ model SystemSettings {
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 }
-

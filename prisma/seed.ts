@@ -48,7 +48,6 @@ async function main() {
             latitude: -7.7586,
             longitude: 110.4096,
             isVerified: true,
-            isActive: true,
         },
     })
     console.log('✅ Created provider:', provider.businessName)

@@ -46,7 +46,7 @@ export default function HomePage() {
               NEXT-GEN ADDITIVE MANUFACTURING
             </div>
             <h1 className="text-5xl lg:text-7xl font-black leading-tight tracking-tight text-slate-900">
-              Your Ideas,<br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-cyber-violet">Printed in 3D</span>
+              Your Ideas,<br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-black">Printed in 3D</span>
             </h1>
             <p className="text-slate-500 text-lg lg:text-xl max-w-lg leading-relaxed">
               Fast, precise 3D printing services for B2C and B2B customers. From functional prototypes to volume production in over 30+ industrial materials.
@@ -73,9 +73,13 @@ export default function HomePage() {
             <div className="absolute -inset-4 bg-gradient-to-r from-primary/10 to-cyber-violet/10 rounded-3xl blur-2xl"></div>
             <div className="relative bg-white border border-slate-200 rounded-3xl p-4 overflow-hidden aspect-square flex items-center justify-center shadow-2xl shadow-slate-200/50">
               <div className="w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 rounded-2xl flex items-center justify-center">
-                <svg className="w-32 h-32 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" />
-                </svg>
+                 <Image
+                                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuDHOcYGLzWQ38gYTOV8_lLdVaAyFhHDbnWH5gPybHFYTTBfVjAIln0-lkLxF2vMwKMx1kO872ljwvkdbRemdt8jqKfMDhQztf31wXKQOsuMJ1U89cBbj7BvXLgk1XCFTT6vE0iokfE_H9vNYI-KEW5aA6s803cj6TyVb5Rjop3ofylMm0fjjg7of1jlqKC8aZasaADzv6J9VyrCnTm_AzXSV9MkW-OlbZMUsNUJwFnjxXEgXH6Qv29ciw79LZTxOu5XZW1C6N1d-g?q=80&w=2070"
+                                    alt="3D Printing Manufacturing"
+                                    fill
+                                    className="object-cover opacity-80"
+                                    priority
+                                />
               </div>
               <div className="absolute bottom-10 right-10 bg-white/90 backdrop-blur-md p-6 rounded-2xl border border-slate-100 shadow-2xl">
                 <div className="flex items-center gap-3 mb-2">
@@ -115,8 +119,8 @@ export default function HomePage() {
             <div className="hidden md:block absolute top-12 left-[15%] right-[15%] dotted-connector opacity-10"></div>
             {[
               { num: "01", icon: "upload_file", title: "Upload CAD", desc: "Support for STL, OBJ, and STEP files. Instant geometry verification.", color: "primary" },
-              { num: "02", icon: "settings_input_component", title: "Configure", desc: "Select material, density, and finish. Live preview your configuration.", color: "cyber-violet" },
-              { num: "03", icon: "local_shipping", title: "Delivered", desc: "Quality controlled parts delivered to your door in as fast as 48 hours.", color: "indigo-500" },
+              { num: "02", icon: "settings_input_component", title: "Configure", desc: "Select material, density, and finish. Live preview your configuration.", color: "primary" },
+              { num: "03", icon: "local_shipping", title: "Delivered", desc: "Quality controlled parts delivered to your door in as fast as 48 hours.", color: "primary" },
             ].map((step) => (
               <div key={step.num} className="relative flex flex-col items-center text-center group">
                 <div className="w-24 h-24 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center mb-8 shadow-sm group-hover:shadow-md transition-shadow relative">

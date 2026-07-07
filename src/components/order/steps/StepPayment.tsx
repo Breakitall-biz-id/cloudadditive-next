@@ -3,6 +3,9 @@
 import { useState, useEffect } from "react"
 import type { UseOrderWizardReturn } from "@/hooks/useOrderWizard"
 import Script from "next/script"
+import { createOrderDirect } from "@/actions/create-order"
+import { uploadFile } from "@/lib/upload-client"
+import { isGcodeFile } from "@/lib/gcode-parser"
 
 interface StepPaymentProps {
     wizard: UseOrderWizardReturn
@@ -29,71 +32,82 @@ export function StepPayment({ wizard }: StepPaymentProps) {
         setPaymentError(null)
 
         try {
-            // Create payment transaction
-            const response = await fetch('/api/payment/create', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    amount: computed.total,
-                    customerName: state.recipientName,
-                    customerEmail: 'customer@example.com', // TODO: get from auth
-                    customerPhone: state.recipientPhone,
-                    items: [
-                        {
-                            id: 'print-material',
-                            name: `3D Print - ${state.selectedMaterial?.toUpperCase() || 'PLA'}`,
-                            price: computed.materialCost,
-                            quantity: state.quantity,
-                        },
-                        {
-                            id: 'print-time',
-                            name: 'Machine Time',
-                            price: computed.timeCost,
-                            quantity: 1,
-                        },
-                        {
-                            id: 'provider-fee',
-                            name: 'Provider Fee',
-                            price: computed.markup,
-                            quantity: 1,
-                        },
-                        {
-                            id: 'platform-fee',
-                            name: 'Platform Fee',
-                            price: computed.platformFee,
-                            quantity: 1,
-                        },
-                        {
-                            id: 'shipping',
-                            name: 'Shipping Cost',
-                            price: computed.shippingCost,
-                            quantity: 1,
-                        },
-                    ].filter(item => item.price > 0),
-                }),
-            })
-
-            const data = await response.json()
-
-            if (!data.success) {
-                throw new Error(data.error || 'Failed to create payment')
+            // 1. Upload file to R2 storage
+            const fileToUpload = state.file
+            if (!fileToUpload) {
+                setPaymentError("No file to upload")
+                setIsLoading(false)
+                return
             }
 
+            const fileType = isGcodeFile(fileToUpload) ? "gcode" : "stl"
+            const uploadResult = await uploadFile(fileToUpload, fileType)
+
+            if (!uploadResult.success) {
+                throw new Error(uploadResult.error || "Failed to upload file")
+            }
+
+            // 2. Create Order with the uploaded file URL
+            const result = await createOrderDirect({
+                file: {
+                    url: uploadResult.url, // URL from R2
+                    name: state.file?.name || (fileType === 'gcode' ? "model.gcode" : "model.stl"),
+                    size: state.file?.size || 0,
+                },
+                materialKey: state.selectedMaterial || 'pla',
+                qualityKey: state.selectedQuality || 'normal',
+                quantity: state.quantity,
+                printSettings: {
+                    infill: "20%", // Hardcoded for now or from state
+                    color: state.selectedColor || "Default",
+                },
+                shipping: {
+                    recipientName: state.recipientName,
+                    phone: state.recipientPhone,
+                    address: `${state.detailAddress}, ${state.selectedArea?.name || ''}`,
+                    courier: state.selectedCourier || undefined,
+                },
+                totals: {
+                    printCost: computed.materialCost + computed.timeCost,
+                    shippingCost: computed.shippingCost,
+                    serviceFee: computed.markup + computed.platformFee,
+                    grandTotal: computed.total,
+                },
+                // Pre-check printer assignment
+                printerId: state.selectedPrinter?.printerId,
+                providerId: state.selectedPrinter?.providerId,
+                customerCoords: state.customerCoords || undefined,
+                gcodeData: state.slicedResult ? {
+                    estimatedTime: state.slicedResult.printTimeMinutes * 60,
+                    filamentLength: 0,
+                    filamentWeight: state.slicedResult.filamentGrams,
+                } : undefined,
+            })
+
+            if (!result.success || !result.snapToken) {
+                throw new Error(result.error || 'Failed to create order')
+            }
+
+            const snapToken = result.snapToken
+            const orderId = result.orderId
+
+
+
             // Open Snap payment popup
-            window.snap?.pay(data.token, {
+            window.snap?.pay(snapToken, {
                 onSuccess: (result) => {
                     console.log('Payment success:', result)
                     // TODO: Navigate to success page
-                    window.location.href = '/order/success?order_id=' + data.orderId
+                    window.location.href = '/order/success?order_id=' + orderId
                 },
                 onPending: (result) => {
                     console.log('Payment pending:', result)
                     // TODO: Navigate to pending page
-                    window.location.href = '/order/pending?order_id=' + data.orderId
+                    window.location.href = '/order/pending?order_id=' + orderId
                 },
                 onError: (result) => {
                     console.error('Payment error:', result)
-                    setPaymentError('Payment failed. Please try again.')
+                    window.location.href = '/order/failed?order_id=' + orderId
                 },
                 onClose: () => {
                     console.log('Payment popup closed')

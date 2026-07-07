@@ -60,7 +60,7 @@ export default function OrderPage() {
                     {ORDER_STEPS.map((step) => (
                         <div key={step.id} className="flex flex-col items-center gap-3 bg-slate-50 px-3">
                             <div className={`size-10 rounded-full flex items-center justify-center font-bold transition-all ${state.currentStep >= step.id
-                                ? "bg-primary text-white shadow-[0_0_15px_rgba(249,115,22,0.4)]"
+                                ? "bg-primary text-white"
                                 : "bg-slate-200 border border-slate-300 text-slate-400"
                                 }`}>
                                 <span className="material-symbols-outlined text-xl">{step.icon}</span>

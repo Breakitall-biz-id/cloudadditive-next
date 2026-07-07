@@ -26,10 +26,10 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // Find all active providers with available printers
+        // Find all verified providers with available printers
         const providers = await prisma.provider.findMany({
             where: {
-                isActive: true,
+                isVerified: true,
                 printers: {
                     some: {
                         status: { in: ["ONLINE", "PRINTING"] } // Available printers
@@ -60,16 +60,20 @@ export async function POST(request: NextRequest) {
 
         // Calculate distance for each provider and sort by nearest
         const providersWithDistance = providers
+            .filter(provider => provider.latitude !== null && provider.longitude !== null)
             .map(provider => {
                 const distance = calculateDistance(
                     lat,
                     lng,
-                    provider.latitude,
-                    provider.longitude
+                    provider.latitude!,
+                    provider.longitude!
                 )
 
+                // Default service radius of 50km if not specified
+                const serviceRadius = 50
+
                 // Check if within service radius
-                const isWithinRadius = distance <= provider.serviceRadius
+                const isWithinRadius = distance <= serviceRadius
 
                 // Count available printers
                 const availablePrinters = provider.printers.filter(p => p.status === "ONLINE").length
@@ -82,9 +86,9 @@ export async function POST(request: NextRequest) {
                     distance: Math.round(distance * 10) / 10,
                     distanceUnit: "km",
                     isWithinRadius,
-                    serviceRadius: provider.serviceRadius,
-                    rating: provider.rating,
-                    totalOrders: provider.totalOrders,
+                    serviceRadius,
+                    rating: 0, // Default until rating system is implemented
+                    totalOrders: 0, // Default until order counting is implemented
                     isVerified: provider.isVerified,
                     availablePrinters,
                     totalPrinters: provider.printers.length,

@@ -74,29 +74,26 @@ export function StepConfigure({ wizard }: StepConfigureProps) {
             )}
 
             {/* Material Selection */}
-            <div className={`bg-white rounded-xl border border-slate-200 p-6 ${fileIsGcode ? 'opacity-50' : ''}`}>
+            <div className="bg-white rounded-xl border border-slate-200 p-6">
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 block">
-                    Material {fileIsGcode && <span className="text-violet-500 ml-2">(Embedded in G-code)</span>}
+                    Material {fileIsGcode && <span className="text-violet-500 ml-2">(Confirm Selection)</span>}
                 </label>
                 <div className="grid grid-cols-4 gap-3">
                     {MATERIALS.map((material) => (
                         <button
                             key={material.id}
-                            onClick={() => !fileIsGcode && actions.setSelectedMaterial(material.id)}
-                            disabled={fileIsGcode}
-                            className={`relative p-4 rounded-xl border-2 transition-all ${fileIsGcode
-                                ? "border-slate-100 bg-slate-50 cursor-not-allowed"
-                                : state.selectedMaterial === material.id
+                            onClick={() => actions.setSelectedMaterial(material.id)}
+                            className={`relative p-4 rounded-xl border-2 transition-all ${state.selectedMaterial === material.id
                                     ? "border-primary bg-primary/5 shadow-lg shadow-primary/10"
                                     : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
                                 }`}
                         >
-                            {!fileIsGcode && state.selectedMaterial === material.id && (
+                            {state.selectedMaterial === material.id && (
                                 <div className="absolute top-2 right-2 size-5 rounded-full bg-primary flex items-center justify-center">
                                     <span className="material-symbols-outlined text-white text-xs">check</span>
                                 </div>
                             )}
-                            <p className={`font-bold ${fileIsGcode ? 'text-slate-400' : 'text-slate-900'}`}>{material.name}</p>
+                            <p className="font-bold text-slate-900">{material.name}</p>
                             <p className="text-xs text-slate-500 mt-1">Rp {material.pricePerGram}/g</p>
                         </button>
                     ))}
