@@ -104,10 +104,28 @@ async function main() {
         console.log('✅ Created quality preset:', quality.name)
     }
 
+    await prisma.systemSettings.upsert({
+        where: { id: 'default' },
+        update: {},
+        create: {
+            id: 'default',
+            markupPercentage: 0.15,
+            platformFeePercentage: 0.10,
+            machineRatePerHour: 10000,
+            estimatedPrintSpeed: 15000,
+            defaultInfillPercentage: 0.20,
+        },
+    })
+    console.log('✅ Created system settings')
+
     // Create a sample printer
     const printer = await prisma.printer.upsert({
         where: { id: 'printer-1' },
-        update: {},
+        update: {
+            currentMaterialId: 'pla',
+            isAcceptingOrders: true,
+            status: 'ONLINE',
+        },
         create: {
             id: 'printer-1',
             providerId: provider.id,
@@ -118,20 +136,24 @@ async function main() {
             buildDepth: 210,
             buildHeight: 210,
             status: 'ONLINE',
+            currentMaterialId: 'pla',
+            isAcceptingOrders: true,
         },
     })
 
     // Link printer to materials
-    const plaMarterial = await prisma.material.findUnique({ where: { id: 'pla' } })
-    if (plaMarterial) {
+    for (const mat of materials) {
+        const material = await prisma.material.findUnique({ where: { id: mat.name.toLowerCase() } })
+        if (!material) continue
+
         await prisma.printerMaterial.upsert({
-            where: { printerId_materialId: { printerId: printer.id, materialId: plaMarterial.id } },
+            where: { printerId_materialId: { printerId: printer.id, materialId: material.id } },
             update: {},
             create: {
                 printerId: printer.id,
-                materialId: plaMarterial.id,
-                nozzleTemp: 200,
-                bedTemp: 60,
+                materialId: material.id,
+                nozzleTemp: mat.nozzleTemp,
+                bedTemp: mat.bedTemp,
             },
         })
     }
