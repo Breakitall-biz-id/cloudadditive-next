@@ -4,9 +4,10 @@ import Link from "next/link"
 import Image from "next/image"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useState, Suspense } from "react"
-import { signIn } from "next-auth/react"
+import { getSession, signIn } from "next-auth/react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
+import { getDashboardPathForRole } from "@/lib/role-redirect"
 
 const loginSchema = z.object({
     email: z.string().email("Email tidak valid"),
@@ -22,7 +23,7 @@ function LoginForm() {
     const [isLoading, setIsLoading] = useState(false)
 
     // Get redirect URL from query params (for hybrid flow)
-    const callbackUrl = searchParams.get("callbackUrl") || "/dashboard"
+    const callbackUrl = searchParams.get("callbackUrl")
 
     const {
         register,
@@ -44,7 +45,8 @@ function LoginForm() {
             if (result?.error) {
                 setError("Email atau password salah")
             } else {
-                router.push(callbackUrl)
+                const session = await getSession()
+                router.push(callbackUrl || getDashboardPathForRole(session?.user?.role))
                 router.refresh()
             }
         } catch {
@@ -55,7 +57,7 @@ function LoginForm() {
     }
 
     const handleGoogleSignIn = () => {
-        signIn("google", { callbackUrl })
+        signIn("google", { callbackUrl: callbackUrl || "/api/auth/role-redirect" })
     }
 
     return (

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { auth } from "@/lib/auth"
+import { getDashboardPathForRole } from "@/lib/role-redirect"
 
 // Routes that require authentication
 const protectedRoutes = [
@@ -41,7 +42,7 @@ export default auth((request) => {
     // If user is logged in and trying to access auth routes (login/register)
     // Redirect them to dashboard
     if (isLoggedIn && authRoutes.some(route => pathname.startsWith(route))) {
-        return NextResponse.redirect(new URL("/dashboard", request.url))
+        return NextResponse.redirect(new URL(getDashboardPathForRole(request.auth?.user?.role), request.url))
     }
 
     // If user is NOT logged in and trying to access protected routes

@@ -4,9 +4,10 @@ import Link from "next/link"
 import Image from "next/image"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useState, Suspense } from "react"
-import { signIn } from "next-auth/react"
+import { getSession, signIn } from "next-auth/react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
+import { getDashboardPathForRole } from "@/lib/role-redirect"
 
 const registerSchema = z.object({
     name: z.string().min(2, "Nama minimal 2 karakter"),
@@ -28,7 +29,7 @@ function RegisterForm() {
     const [isLoading, setIsLoading] = useState(false)
 
     // Get redirect URL from query params (for hybrid flow)
-    const callbackUrl = searchParams.get("callbackUrl") || "/dashboard"
+    const callbackUrl = searchParams.get("callbackUrl")
 
     const {
         register,
@@ -65,7 +66,8 @@ function RegisterForm() {
                 })
 
                 if (signInResult?.ok) {
-                    router.push(callbackUrl)
+                    const session = await getSession()
+                    router.push(callbackUrl || getDashboardPathForRole(session?.user?.role))
                     router.refresh()
                 } else {
                     setTimeout(() => {
@@ -81,7 +83,7 @@ function RegisterForm() {
     }
 
     const handleGoogleSignIn = () => {
-        signIn("google", { callbackUrl })
+        signIn("google", { callbackUrl: callbackUrl || "/api/auth/role-redirect" })
     }
 
     if (success) {

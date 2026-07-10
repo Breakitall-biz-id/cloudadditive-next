@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { redirect } from "next/navigation"
 import { StitchSidebar } from "@/components/dashboard/StitchSidebar"
+import { getDashboardPathForRole } from "@/lib/role-redirect"
 
 export default async function CustomerDashboardLayout({
     children,
@@ -12,6 +13,11 @@ export default async function CustomerDashboardLayout({
 
     if (!session) {
         redirect("/login")
+    }
+
+    const roleDashboardPath = getDashboardPathForRole(session.user.role)
+    if (roleDashboardPath !== "/dashboard") {
+        redirect(roleDashboardPath)
     }
 
     // Check if user has a provider profile
