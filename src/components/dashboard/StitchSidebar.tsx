@@ -62,7 +62,6 @@ export function StitchSidebar({ user, isVerified = true, hasProviderProfile = fa
 
     const providerSystemItems = [
         { href: "/provider/dashboard/settings", icon: "settings", label: "Settings" },
-        { href: "/help", icon: "help", label: "Help Center" },
     ]
 
     // Customer navigation items
@@ -74,7 +73,6 @@ export function StitchSidebar({ user, isVerified = true, hasProviderProfile = fa
 
     const customerSystemItems = [
         { href: "/dashboard/settings", icon: "settings", label: "Settings" },
-        { href: "/help", icon: "help", label: "Help Center" },
     ]
 
     // Select nav items based on context

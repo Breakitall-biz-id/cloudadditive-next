@@ -262,13 +262,13 @@ function RegisterForm() {
                             />
                             <label htmlFor="terms" className="text-sm text-slate-500">
                                 Saya setuju dengan{" "}
-                                <Link href="/terms" className="text-primary hover:text-cyber-violet font-medium">
+                                <span className="text-primary font-medium">
                                     Syarat & Ketentuan
-                                </Link>{" "}
+                                </span>{" "}
                                 dan{" "}
-                                <Link href="/privacy" className="text-primary hover:text-cyber-violet font-medium">
+                                <span className="text-primary font-medium">
                                     Kebijakan Privasi
-                                </Link>
+                                </span>
                             </label>
                         </div>
 

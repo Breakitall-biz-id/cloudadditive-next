@@ -36,7 +36,7 @@ export function StepIdentity({ wizard }: StepProps) {
     // Added text-base md:text-sm to match Input's default typography
     const inputClassName = "w-full !h-12 px-4 rounded-xl border-slate-200 bg-white text-base md:text-sm focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary transition-all shadow-none"
     const labelClassName = "text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block"
-    const readOnlyInputClassName = "w-full h-12 px-4 rounded-xl border-slate-200 bg-slate-50 text-slate-600 focus-visible:ring-0 cursor-not-allowed shadow-none"
+    const addressInputClassName = "w-full h-12 px-4 rounded-xl border-slate-200 bg-white text-slate-700 focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary transition-all shadow-none"
 
     return (
         <div className="w-full max-w-2xl animate-fade-in">
@@ -153,16 +153,16 @@ export function StepIdentity({ wizard }: StepProps) {
                                 </label>
                             </div>
 
-                            {/* Auto-filled Read-Only Grid */}
+                            {/* Address grid can be auto-filled by map, but remains editable as fallback. */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <div>
                                     <label className="block">
                                         <span className={labelClassName}>Province</span>
                                         <Input
                                             value={state.selectedArea?.administrativeLevel.province || state.province || ""}
-                                            readOnly
-                                            className={readOnlyInputClassName}
-                                            placeholder="Auto-filled"
+                                            onChange={(e) => actions.setProvince(e.target.value)}
+                                            className={addressInputClassName}
+                                            placeholder="D.I. Yogyakarta"
                                             type="text"
                                         />
                                     </label>
@@ -172,9 +172,9 @@ export function StepIdentity({ wizard }: StepProps) {
                                         <span className={labelClassName}>City</span>
                                         <Input
                                             value={state.selectedArea?.administrativeLevel.city || state.city || ""}
-                                            readOnly
-                                            className={readOnlyInputClassName}
-                                            placeholder="Auto-filled"
+                                            onChange={(e) => actions.setCity(e.target.value)}
+                                            className={addressInputClassName}
+                                            placeholder="Sleman"
                                             type="text"
                                         />
                                     </label>
@@ -184,9 +184,9 @@ export function StepIdentity({ wizard }: StepProps) {
                                         <span className={labelClassName}>Postal Code</span>
                                         <Input
                                             value={state.selectedArea?.postalCode || state.postalCode || ""}
-                                            readOnly
-                                            className={`${readOnlyInputClassName} font-mono`}
-                                            placeholder="Auto-filled"
+                                            onChange={(e) => actions.setPostalCode(e.target.value)}
+                                            className={`${addressInputClassName} font-mono`}
+                                            placeholder="55584"
                                             type="text"
                                         />
                                     </label>
@@ -194,10 +194,10 @@ export function StepIdentity({ wizard }: StepProps) {
                             </div>
 
                             {!state.selectedArea && (
-                                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3">
-                                    <span className="material-symbols-outlined text-amber-500">warning</span>
-                                    <p className="text-sm text-amber-700">
-                                        Please search or pick a location on the map to auto-fill these details.
+                                <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 flex gap-3">
+                                    <span className="material-symbols-outlined text-sky-500">info</span>
+                                    <p className="text-sm text-sky-700">
+                                        You can search on the map or fill the location details manually.
                                     </p>
                                 </div>
                             )}

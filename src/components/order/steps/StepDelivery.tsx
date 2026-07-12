@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import Script from "next/script"
 import dynamic from "next/dynamic"
 import type { UseOrderWizardReturn } from "@/hooks/useOrderWizard"
@@ -24,6 +25,30 @@ interface StepDeliveryProps {
 
 export function StepDelivery({ wizard }: StepDeliveryProps) {
     const { state, actions } = wizard
+    const [manualProvince, setManualProvince] = useState(state.selectedArea?.administrativeLevel.province || "")
+    const [manualCity, setManualCity] = useState(state.selectedArea?.administrativeLevel.city || "")
+    const [manualDistrict, setManualDistrict] = useState(state.selectedArea?.administrativeLevel.district || "")
+    const [manualPostalCode, setManualPostalCode] = useState(state.selectedArea?.postalCode || "")
+
+    const useManualLocation = () => {
+        if (!manualProvince || !manualCity || !manualPostalCode) return
+
+        actions.setSelectedArea({
+            id: `${manualCity}-${manualPostalCode}`,
+            name: manualDistrict || manualCity,
+            postalCode: manualPostalCode,
+            administrativeLevel: {
+                country: "Indonesia",
+                province: manualProvince,
+                city: manualCity,
+                district: manualDistrict,
+            },
+        })
+
+        const coords = state.customerCoords || { lat: -7.7586, lng: 110.4096 }
+        actions.setCustomerCoords(coords)
+        actions.findBestPrinterPreCheck(coords.lat, coords.lng)
+    }
 
     return (
         <>
@@ -206,55 +231,66 @@ export function StepDelivery({ wizard }: StepDeliveryProps) {
                     />
                 </div>
 
-                {/* Auto-filled from Biteship */}
+                {/* Auto-filled from Biteship, editable as fallback when map/autocomplete is unavailable. */}
                 <div className="grid grid-cols-4 gap-4">
                     <div>
                         <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">Provinsi</label>
                         <input
                             type="text"
-                            value={state.selectedArea?.administrativeLevel.province || ""}
-                            readOnly
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-600"
-                            placeholder="—"
+                            value={state.selectedArea?.administrativeLevel.province || manualProvince}
+                            onChange={(event) => setManualProvince(event.target.value)}
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-700 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                            placeholder="D.I. Yogyakarta"
                         />
                     </div>
                     <div>
                         <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">Kota</label>
                         <input
                             type="text"
-                            value={state.selectedArea?.administrativeLevel.city || ""}
-                            readOnly
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-600"
-                            placeholder="—"
+                            value={state.selectedArea?.administrativeLevel.city || manualCity}
+                            onChange={(event) => setManualCity(event.target.value)}
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-700 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                            placeholder="Sleman"
                         />
                     </div>
                     <div>
                         <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">Kecamatan</label>
                         <input
                             type="text"
-                            value={state.selectedArea?.administrativeLevel.district || ""}
-                            readOnly
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-600"
-                            placeholder="—"
+                            value={state.selectedArea?.administrativeLevel.district || manualDistrict}
+                            onChange={(event) => setManualDistrict(event.target.value)}
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-700 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                            placeholder="Ngaglik"
                         />
                     </div>
                     <div>
                         <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">Kode Pos</label>
                         <input
                             type="text"
-                            value={state.selectedArea?.postalCode || ""}
-                            readOnly
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-600"
-                            placeholder="—"
+                            value={state.selectedArea?.postalCode || manualPostalCode}
+                            onChange={(event) => setManualPostalCode(event.target.value)}
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-700 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                            placeholder="55584"
                         />
                     </div>
                 </div>
 
                 {!state.selectedArea && (
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3">
-                        <span className="material-symbols-outlined text-amber-500">warning</span>
-                        <p className="text-sm text-amber-700">
-                            Pilih lokasi dari peta atau cari alamat di atas untuk melanjutkan. Data akan terisi otomatis.
+                    <button
+                        type="button"
+                        onClick={useManualLocation}
+                        disabled={!manualProvince || !manualCity || !manualPostalCode || state.isSearchingPrinter}
+                        className="rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white transition-all hover:bg-primary disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                    >
+                        Gunakan Alamat Manual & Cari Printer
+                    </button>
+                )}
+
+                {!state.selectedArea && (
+                    <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 flex gap-3">
+                        <span className="material-symbols-outlined text-sky-500">info</span>
+                        <p className="text-sm text-sky-700">
+                            Anda bisa memilih lokasi dari peta atau mengisi area manual lalu mencari printer.
                         </p>
                     </div>
                 )}

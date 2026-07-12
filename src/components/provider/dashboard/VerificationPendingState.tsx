@@ -47,40 +47,22 @@ export function VerificationPendingState() {
                             <span className="material-symbols-outlined">menu_book</span>
                         </div>
                         <h3 className="font-bold text-slate-900 mb-2">Read Provider Guidelines</h3>
-                        <p className="text-sm text-slate-500 mb-4">Learn about our quality standards and service level agreements.</p>
-                        <a href="#" className="text-primary text-sm font-bold flex items-center gap-1 hover:underline">
-                            View Docs <span className="material-symbols-outlined text-sm">open_in_new</span>
-                        </a>
+                        <p className="text-sm text-slate-500">Learn about our quality standards and service level agreements.</p>
                     </div>
                     <div className="bg-white border border-slate-200 p-6 rounded-xl hover:border-primary/30 transition-colors group">
                         <div className="w-10 h-10 bg-slate-50 text-slate-600 rounded-lg flex items-center justify-center mb-4 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
                             <span className="material-symbols-outlined">forum</span>
                         </div>
-                        <h3 className="font-bold text-slate-900 mb-2">Join Discord Community</h3>
-                        <p className="text-sm text-slate-500 mb-4">Connect with other partners and get real-time support from the community.</p>
-                        <a href="#" className="text-primary text-sm font-bold flex items-center gap-1 hover:underline">
-                            Join Server <span className="material-symbols-outlined text-sm">open_in_new</span>
-                        </a>
+                        <h3 className="font-bold text-slate-900 mb-2">Verification Updates</h3>
+                        <p className="text-sm text-slate-500">Status changes will appear automatically after admin review.</p>
                     </div>
                     <div className="bg-white border border-slate-200 p-6 rounded-xl hover:border-primary/30 transition-colors group">
                         <div className="w-10 h-10 bg-slate-50 text-slate-600 rounded-lg flex items-center justify-center mb-4 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
                             <span className="material-symbols-outlined">build</span>
                         </div>
                         <h3 className="font-bold text-slate-900 mb-2">Prepare Your Equipment</h3>
-                        <p className="text-sm text-slate-500 mb-4">Tips on calibrating your fleet for high-tolerance industrial prints.</p>
-                        <a href="#" className="text-primary text-sm font-bold flex items-center gap-1 hover:underline">
-                            Read Guide <span className="material-symbols-outlined text-sm">open_in_new</span>
-                        </a>
+                        <p className="text-sm text-slate-500">Tips on calibrating your fleet for high-tolerance industrial prints.</p>
                     </div>
-                </div>
-
-                {/* Contact Support */}
-                <div className="flex flex-col items-center pt-4">
-                    <p className="text-slate-500 text-sm mb-4">Need help or have questions about your application?</p>
-                    <button className="px-6 py-2.5 border border-slate-300 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-all flex items-center gap-2">
-                        <span className="material-symbols-outlined text-lg">contact_support</span>
-                        Contact Partner Support
-                    </button>
                 </div>
             </div>
         </div>

@@ -1,9 +1,8 @@
 "use client"
 
-import { ArrowRight, ArrowLeft, Printer, Layers, Check } from "lucide-react"
+import { ArrowRight, ArrowLeft, Printer, Check } from "lucide-react"
 import type { UseProviderWizardReturn } from "@/hooks/useProviderWizard"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface StepProps {
     wizard: UseProviderWizardReturn
@@ -51,21 +50,18 @@ export function StepCapacity({ wizard }: StepProps) {
                     <div>
                         <label className="block">
                             <span className={labelClassName}>Primary Technology</span>
-                            <Select
+                            <select
                                 value={state.primaryTechnology}
-                                onValueChange={actions.setPrimaryTechnology}
+                                onChange={(event) => actions.setPrimaryTechnology(event.target.value)}
+                                className={inputClassName}
                             >
-                                <SelectTrigger className={inputClassName}>
-                                    <SelectValue placeholder="Select your core technology" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="FDM">Fused Deposition Modeling (FDM)</SelectItem>
-                                    <SelectItem value="SLA">Stereolithography (SLA)</SelectItem>
-                                    <SelectItem value="SLS">Selective Laser Sintering (SLS)</SelectItem>
-                                    <SelectItem value="MJF">Multi Jet Fusion (MJF)</SelectItem>
-                                    <SelectItem value="DMLS">Direct Metal Laser Sintering (DMLS)</SelectItem>
-                                </SelectContent>
-                            </Select>
+                                <option value="">Select your core technology</option>
+                                <option value="FDM">Fused Deposition Modeling (FDM)</option>
+                                <option value="SLA">Stereolithography (SLA)</option>
+                                <option value="SLS">Selective Laser Sintering (SLS)</option>
+                                <option value="MJF">Multi Jet Fusion (MJF)</option>
+                                <option value="DMLS">Direct Metal Laser Sintering (DMLS)</option>
+                            </select>
                         </label>
                     </div>
 

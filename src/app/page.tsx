@@ -19,7 +19,7 @@ export default function HomePage() {
             <a className="text-sm font-medium text-slate-900 hover:text-primary transition-colors" href="#services">Services</a>
             <a className="text-sm font-medium text-slate-900 hover:text-primary transition-colors" href="#materials">Materials</a>
             <a className="text-sm font-medium text-slate-900 hover:text-primary transition-colors" href="#pricing">Pricing</a>
-            <a className="text-sm font-medium text-slate-900 hover:text-primary transition-colors" href="#about">About</a>
+            <Link className="text-sm font-medium text-slate-900 hover:text-primary transition-colors" href="/provider/register">For Providers</Link>
           </div>
           <div className="flex items-center gap-4">
             <Link href="/login" className="text-sm font-bold px-4 py-2 rounded-xl text-slate-900 hover:bg-slate-100 transition-all">
@@ -206,9 +206,7 @@ export default function HomePage() {
               <h2 className="text-3xl font-black text-slate-900 mb-2">Engineering Materials</h2>
               <p className="text-slate-500">Scientifically tested polymers for every application.</p>
             </div>
-            <a className="text-primary font-bold flex items-center gap-2 hover:gap-3 transition-all" href="#">
-              View Data Sheets <span className="material-symbols-outlined">chevron_right</span>
-            </a>
+            <span className="text-sm font-bold text-slate-400">Material data sheets coming soon</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {[
@@ -403,7 +401,7 @@ export default function HomePage() {
 
       {/* Footer */}
       <footer className="bg-white py-20 border-t border-slate-100">
-        <div className="max-w-7xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-12">
+        <div className="max-w-7xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-12">
           <div className="col-span-2">
             <div className="flex items-center gap-3 mb-6">
               <div className="bg-primary p-2 rounded-lg">
@@ -418,34 +416,26 @@ export default function HomePage() {
           <div>
             <h6 className="text-slate-900 font-bold text-sm mb-6">Service</h6>
             <ul className="space-y-4 text-sm text-slate-500">
-              <li><a className="hover:text-primary transition-colors" href="#">Online Quoting</a></li>
-              <li><a className="hover:text-primary transition-colors" href="#">3D Printing</a></li>
-              <li><a className="hover:text-primary transition-colors" href="#">Post Processing</a></li>
+              <li><Link className="hover:text-primary transition-colors" href="/order">Online Quoting</Link></li>
+              <li><a className="hover:text-primary transition-colors" href="#services">3D Printing</a></li>
+              <li><a className="hover:text-primary transition-colors" href="#pricing">Pricing</a></li>
             </ul>
           </div>
           <div>
             <h6 className="text-slate-900 font-bold text-sm mb-6">Materials</h6>
             <ul className="space-y-4 text-sm text-slate-500">
-              <li><a className="hover:text-primary transition-colors" href="#">PLA</a></li>
-              <li><a className="hover:text-primary transition-colors" href="#">ABS</a></li>
-              <li><a className="hover:text-primary transition-colors" href="#">PETG</a></li>
-              <li><a className="hover:text-primary transition-colors" href="#">TPU</a></li>
-            </ul>
-          </div>
-          <div>
-            <h6 className="text-slate-900 font-bold text-sm mb-6">Support</h6>
-            <ul className="space-y-4 text-sm text-slate-500">
-              <li><a className="hover:text-primary transition-colors" href="#">Help Center</a></li>
-              <li><a className="hover:text-primary transition-colors" href="#">Shipping Policy</a></li>
-              <li><a className="hover:text-primary transition-colors" href="#">Terms of Service</a></li>
+              <li><a className="hover:text-primary transition-colors" href="#materials">PLA</a></li>
+              <li><a className="hover:text-primary transition-colors" href="#materials">ABS</a></li>
+              <li><a className="hover:text-primary transition-colors" href="#materials">PETG</a></li>
+              <li><a className="hover:text-primary transition-colors" href="#materials">TPU</a></li>
             </ul>
           </div>
           <div>
             <h6 className="text-slate-900 font-bold text-sm mb-6">Company</h6>
             <ul className="space-y-4 text-sm text-slate-500">
-              <li><a className="hover:text-primary transition-colors" href="#">About Us</a></li>
-              <li><a className="hover:text-primary transition-colors" href="#">Careers</a></li>
-              <li><a className="hover:text-primary transition-colors" href="#">Contact</a></li>
+              <li><Link className="hover:text-primary transition-colors" href="/provider/register">Become a Provider</Link></li>
+              <li><Link className="hover:text-primary transition-colors" href="/login">Login</Link></li>
+              <li><Link className="hover:text-primary transition-colors" href="/register">Create Account</Link></li>
             </ul>
           </div>
         </div>
@@ -460,4 +450,3 @@ export default function HomePage() {
     </div>
   )
 }
-

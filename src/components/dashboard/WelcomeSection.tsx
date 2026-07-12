@@ -29,7 +29,7 @@ export function WelcomeSection({ name, activeCount = 0 }: WelcomeSectionProps) {
                             New Order
                         </button>
                     </Link>
-                    <Link href="/track">
+                    <Link href="/dashboard/orders">
                         <button className="bg-white text-slate-700 font-bold px-6 py-3 rounded-xl border border-slate-200 flex items-center gap-2 hover:bg-slate-50 transition-all">
                             <Map className="w-5 h-5" />
                             Track Package

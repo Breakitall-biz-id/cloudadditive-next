@@ -32,6 +32,7 @@ model User {
   accounts        Account[]
   sessions        Session[]
   notificationSettings UserNotificationSettings?
+  auditLogs       AuditLog[]
   
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -476,6 +477,40 @@ enum PaymentStatus {
   EXPIRED
   FAILED
   REFUNDED
+}
+
+// ==================== ADMIN AUDIT ====================
+
+model AuditLog {
+  id          String          @id @default(cuid())
+  actorId     String?
+  actor       User?           @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  action      AdminActionType
+  entityType  String
+  entityId    String
+  reason      String          @db.Text
+  metadata    Json?
+
+  createdAt   DateTime        @default(now())
+
+  @@index([actorId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+enum AdminActionType {
+  PROVIDER_VERIFIED
+  PROVIDER_UNVERIFIED
+  USER_ROLE_CHANGED
+  ORDER_STATUS_CHANGED
+  ORDER_ASSIGNMENT_CHANGED
+  PAYMENT_STATUS_CHANGED
+  PRINTER_UPDATED
+  MATERIAL_UPDATED
+  PRINT_QUALITY_UPDATED
+  SYSTEM_SETTINGS_UPDATED
 }
 
 // ==================== SYSTEM SETTINGS ====================

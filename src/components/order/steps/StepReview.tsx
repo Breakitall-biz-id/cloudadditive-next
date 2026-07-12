@@ -170,7 +170,7 @@ export function StepReview({ wizard }: StepReviewProps) {
             <label className="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" className="mt-1 size-4 rounded border-slate-300" />
                 <p className="text-sm text-slate-600">
-                    I agree to the <a href="#" className="text-primary font-bold hover:underline">Terms & Conditions</a> and <a href="#" className="text-primary font-bold hover:underline">Privacy Policy</a>.
+                    I confirm the print, shipping, and payment details above are correct.
                 </p>
             </label>
         </>

@@ -6,9 +6,7 @@ import type {
     Provider,
     ModelDimensions,
 } from "@/types/order"
-import { parseGcodeFile, isGcodeFile, type GcodeStats } from "@/lib/gcode-parser"
-
-const PROCESSING_COST = 15000
+import { parseGcodeFile, isGcodeFile } from "@/lib/gcode-parser"
 
 export function useOrderWizard() {
     // Step
@@ -350,7 +348,7 @@ export function useOrderWizard() {
             case 4: return selectedCourier !== null
             default: return true
         }
-    }, [currentStep, file, selectedMaterial, selectedQuality, selectedArea, recipientName, recipientPhone, selectedCourier])
+    }, [currentStep, file, selectedMaterial, selectedQuality, selectedArea, recipientName, recipientPhone, selectedPrinter, selectedCourier])
 
     // Cost Calculation
     // Default settings (will be overridden by API later)
