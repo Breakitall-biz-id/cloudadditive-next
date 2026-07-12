@@ -23,6 +23,10 @@ export default async function ProviderDashboardLayout({
         select: { isVerified: true }
     })
 
+    if (session.user.role === "ADMIN" && !provider) {
+        redirect("/admin")
+    }
+
     return (
         <div className="min-h-screen bg-[#F9FAFB] text-slate-900 font-inter">
             {/* Stitch Sidebar */}
