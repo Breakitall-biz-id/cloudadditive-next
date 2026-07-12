@@ -144,7 +144,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
                         <option value="CANCELLED">Cancelled</option>
                         <option value="REFUNDED">Refunded</option>
                       </select>
-                      <input name="reason" required minLength={5} placeholder="Reason" className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-600" />
+                      <input name="reason" minLength={5} placeholder="Reason optional; wajib untuk cancel/refund/fail" className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-600" />
                       <button className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white">Apply</button>
                     </form>
                     <form key={`${order.id}-${order.printerId ?? "none"}`} action={adminAssignOrderPrinter} className="mt-3 grid min-w-64 gap-2 rounded-2xl bg-teal-50 p-3">

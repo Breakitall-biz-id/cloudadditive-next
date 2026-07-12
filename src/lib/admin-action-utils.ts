@@ -9,6 +9,22 @@ export function normalizeAuditReason(value: FormDataEntryValue | string | null |
   return reason;
 }
 
+export function normalizeOptionalAuditReason(
+  value: FormDataEntryValue | string | null | undefined,
+  fallback: string
+) {
+  const reason = String(value ?? "").trim();
+  if (reason) {
+    return normalizeAuditReason(reason);
+  }
+
+  const fallbackReason = String(fallback ?? "").trim();
+  if (!fallbackReason) {
+    throw new Error("Fallback audit reason is required");
+  }
+  return fallbackReason;
+}
+
 export function parsePercentageInput(value: FormDataEntryValue | string | null | undefined) {
   const raw = String(value ?? "").trim();
   const numeric = Number(raw);

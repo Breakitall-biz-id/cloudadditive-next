@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   buildAuditMetadata,
   normalizeAuditReason,
+  normalizeOptionalAuditReason,
   parsePercentageInput,
   parsePositiveNumberInput,
 } from "../src/lib/admin-action-utils";
@@ -9,6 +10,17 @@ import {
 assert.equal(normalizeAuditReason("  approve verified documents  "), "approve verified documents");
 assert.throws(() => normalizeAuditReason(" "), /Audit reason is required/);
 assert.throws(() => normalizeAuditReason("ok"), /at least 5 characters/);
+
+assert.equal(
+  normalizeOptionalAuditReason(" ", "System generated reason"),
+  "System generated reason"
+);
+assert.equal(
+  normalizeOptionalAuditReason("  routine operational correction  ", "System generated reason"),
+  "routine operational correction"
+);
+assert.throws(() => normalizeOptionalAuditReason("ok", "System generated reason"), /at least 5 characters/);
+assert.throws(() => normalizeOptionalAuditReason(" ", " "), /Fallback audit reason is required/);
 
 assert.equal(parsePercentageInput("15"), 0.15);
 assert.equal(parsePercentageInput("0.15"), 0.15);

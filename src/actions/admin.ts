@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import {
   buildAuditMetadata,
   normalizeAuditReason,
+  normalizeOptionalAuditReason,
   parsePercentageInput,
   parsePositiveNumberInput,
 } from "@/lib/admin-action-utils";
@@ -33,13 +34,16 @@ export async function setProviderVerification(formData: FormData) {
   const admin = await requireAdmin();
   const providerId = String(formData.get("providerId") ?? "");
   const nextVerified = formData.get("isVerified") === "true";
-  const reason = normalizeAuditReason(formData.get("reason"));
 
   const provider = await prisma.provider.findUnique({
     where: { id: providerId },
     select: { id: true, isVerified: true, businessName: true },
   });
   if (!provider) throw new Error("Provider not found");
+
+  const reason = nextVerified
+    ? normalizeOptionalAuditReason(formData.get("reason"), `Provider verified by admin: ${provider.businessName}`)
+    : normalizeAuditReason(formData.get("reason"));
 
   await prisma.$transaction(async (tx) => {
     await tx.provider.update({
@@ -73,13 +77,20 @@ export async function adminUpdateOrderStatus(formData: FormData) {
   const admin = await requireAdmin();
   const orderId = String(formData.get("orderId") ?? "");
   const nextStatus = String(formData.get("status") ?? "") as OrderStatus;
-  const reason = normalizeAuditReason(formData.get("reason"));
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     select: { id: true, orderNumber: true, status: true },
   });
   if (!order) throw new Error("Order not found");
+
+  const requiresReason = ["PAYMENT_FAILED", "CANCELLED", "REFUNDED"].includes(nextStatus);
+  const reason = requiresReason
+    ? normalizeAuditReason(formData.get("reason"))
+    : normalizeOptionalAuditReason(
+        formData.get("reason"),
+        `Order status updated from ${order.status} to ${nextStatus} by admin`
+      );
 
   await prisma.$transaction(async (tx) => {
     await tx.order.update({
@@ -264,13 +275,17 @@ export async function adminUpdatePrinterState(formData: FormData) {
   const printerId = String(formData.get("printerId") ?? "");
   const nextStatus = String(formData.get("status") ?? "") as PrinterStatus;
   const isAcceptingOrders = formData.get("isAcceptingOrders") === "true";
-  const reason = normalizeAuditReason(formData.get("reason"));
 
   const printer = await prisma.printer.findUnique({
     where: { id: printerId },
     select: { id: true, name: true, status: true, isAcceptingOrders: true },
   });
   if (!printer) throw new Error("Printer not found");
+
+  const reason = normalizeOptionalAuditReason(
+    formData.get("reason"),
+    `Printer ${printer.name} updated from ${printer.status} to ${nextStatus}`
+  );
 
   await prisma.$transaction(async (tx) => {
     await tx.printer.update({
@@ -333,13 +348,17 @@ export async function setMaterialActive(formData: FormData) {
   const admin = await requireAdmin();
   const materialId = String(formData.get("materialId") ?? "");
   const isActive = formData.get("isActive") === "true";
-  const reason = normalizeAuditReason(formData.get("reason"));
 
   const material = await prisma.material.findUnique({
     where: { id: materialId },
     select: { id: true, name: true, isActive: true },
   });
   if (!material) throw new Error("Material not found");
+
+  const reason = normalizeOptionalAuditReason(
+    formData.get("reason"),
+    `Material ${material.name} ${isActive ? "activated" : "deactivated"} by admin`
+  );
 
   await prisma.$transaction(async (tx) => {
     await tx.material.update({ where: { id: materialId }, data: { isActive } });
@@ -360,13 +379,17 @@ export async function setPrintQualityActive(formData: FormData) {
   const admin = await requireAdmin();
   const qualityId = String(formData.get("qualityId") ?? "");
   const isActive = formData.get("isActive") === "true";
-  const reason = normalizeAuditReason(formData.get("reason"));
 
   const quality = await prisma.printQuality.findUnique({
     where: { id: qualityId },
     select: { id: true, name: true, isActive: true },
   });
   if (!quality) throw new Error("Print quality not found");
+
+  const reason = normalizeOptionalAuditReason(
+    formData.get("reason"),
+    `Print quality ${quality.name} ${isActive ? "activated" : "deactivated"} by admin`
+  );
 
   await prisma.$transaction(async (tx) => {
     await tx.printQuality.update({ where: { id: qualityId }, data: { isActive } });
@@ -385,7 +408,7 @@ export async function setPrintQualityActive(formData: FormData) {
 
 export async function updateSystemSettings(formData: FormData) {
   const admin = await requireAdmin();
-  const reason = normalizeAuditReason(formData.get("reason"));
+  const reason = normalizeOptionalAuditReason(formData.get("reason"), "System settings updated by admin");
   const nextSettings = {
     markupPercentage: parsePercentageInput(formData.get("markupPercentage")),
     platformFeePercentage: parsePercentageInput(formData.get("platformFeePercentage")),

@@ -123,7 +123,7 @@ export default async function AdminPrintersPage({ searchParams }: PageProps) {
                     <option value="true">Accepting orders</option>
                     <option value="false">Not accepting</option>
                   </select>
-                  <input name="reason" required minLength={5} placeholder="Audit reason" className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-600 sm:col-span-2" />
+                  <input name="reason" minLength={5} placeholder="Reason optional" className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-600 sm:col-span-2" />
                   <button className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white sm:col-span-2">Update Printer</button>
                 </form>
               </article>

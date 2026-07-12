@@ -14,7 +14,7 @@ export default async function AdminSettingsPage() {
 
   return (
     <div className="space-y-8">
-      <AdminPageHeader title="Catalog & Settings" description="Master data material, warna, kualitas print, dan konfigurasi pricing global. Semua perubahan wajib memakai audit reason." />
+      <AdminPageHeader title="Catalog & Settings" description="Master data material, warna, kualitas print, dan konfigurasi pricing global. Reason admin optional; sistem akan membuat catatan otomatis jika kosong." />
 
       <section className="grid gap-4 md:grid-cols-4">
         <StatCard label="Active Materials" value={activeMaterials.toLocaleString("id-ID")} />
@@ -32,7 +32,7 @@ export default async function AdminSettingsPage() {
               <label className="rounded-2xl bg-slate-50 p-4"><span className="text-xs font-black uppercase tracking-widest text-slate-400">Machine Rate/Hour</span><input name="machineRatePerHour" defaultValue={settings.machineRatePerHour} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-lg font-black" /></label>
               <label className="rounded-2xl bg-slate-50 p-4"><span className="text-xs font-black uppercase tracking-widest text-slate-400">Default Infill (%)</span><input name="defaultInfillPercentage" defaultValue={Math.round(settings.defaultInfillPercentage * 100)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-lg font-black" /></label>
               <label className="rounded-2xl bg-slate-50 p-4 sm:col-span-2"><span className="text-xs font-black uppercase tracking-widest text-slate-400">Estimated Print Speed mm³/hour</span><input name="estimatedPrintSpeed" defaultValue={settings.estimatedPrintSpeed} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-lg font-black" /></label>
-              <label className="sm:col-span-2"><span className="text-xs font-black uppercase tracking-widest text-slate-400">Audit Reason</span><input name="reason" required minLength={5} placeholder="Alasan update setting pricing" className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:border-teal-600" /></label>
+              <label className="sm:col-span-2"><span className="text-xs font-black uppercase tracking-widest text-slate-400">Reason Optional</span><input name="reason" minLength={5} placeholder="Opsional: alasan update setting pricing" className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:border-teal-600" /></label>
               <button className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white sm:col-span-2">Save Settings</button>
             </form>
           ) : (
@@ -52,7 +52,7 @@ export default async function AdminSettingsPage() {
                 <form action={setPrintQualityActive} className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
                   <input type="hidden" name="qualityId" value={quality.id} />
                   <input type="hidden" name="isActive" value={quality.isActive ? "false" : "true"} />
-                  <input name="reason" required minLength={5} placeholder="Audit reason" className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-600" />
+                  <input name="reason" minLength={5} placeholder="Reason optional" className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-600" />
                   <button className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white">{quality.isActive ? "Deactivate" : "Activate"}</button>
                 </form>
               </div>
@@ -78,7 +78,7 @@ export default async function AdminSettingsPage() {
               <form action={setMaterialActive} className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
                 <input type="hidden" name="materialId" value={material.id} />
                 <input type="hidden" name="isActive" value={material.isActive ? "false" : "true"} />
-                <input name="reason" required minLength={5} placeholder="Audit reason" className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-600" />
+                <input name="reason" minLength={5} placeholder="Reason optional" className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-600" />
                 <button className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white">{material.isActive ? "Deactivate" : "Activate"}</button>
               </form>
             </article>

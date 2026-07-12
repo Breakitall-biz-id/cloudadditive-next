@@ -109,7 +109,7 @@ export default async function AdminProvidersPage({ searchParams }: PageProps) {
                 <form action={setProviderVerification} className="mt-5 grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-[1fr_auto]">
                   <input type="hidden" name="providerId" value={provider.id} />
                   <input type="hidden" name="isVerified" value={provider.isVerified ? "false" : "true"} />
-                  <input name="reason" required minLength={5} placeholder={provider.isVerified ? "Alasan unverify provider" : "Alasan approve provider"} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:border-teal-600" />
+                  <input name="reason" required={provider.isVerified} minLength={5} placeholder={provider.isVerified ? "Wajib: alasan unverify provider" : "Opsional: alasan approve provider"} className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold outline-none focus:border-teal-600" />
                   <button className={provider.isVerified ? "rounded-2xl bg-rose-700 px-5 py-3 text-sm font-black text-white" : "rounded-2xl bg-teal-800 px-5 py-3 text-sm font-black text-white"}>
                     {provider.isVerified ? "Unverify" : "Verify"}
                   </button>
