@@ -5,8 +5,10 @@ import type {
     Area,
     Provider,
     ModelDimensions,
+    CatalogData,
 } from "@/types/order"
 import { parseGcodeFile, isGcodeFile } from "@/lib/gcode-parser"
+import { calculateOrderPricing } from "@/lib/order-pricing"
 
 export function useOrderWizard() {
     // Step
@@ -21,6 +23,8 @@ export function useOrderWizard() {
     const [selectedQuality, setSelectedQuality] = useState<string | null>(null)
     const [selectedColor, setSelectedColor] = useState<string | null>(null)
     const [quantity, setQuantity] = useState(1)
+    const [catalog, setCatalog] = useState<CatalogData | null>(null)
+    const [isLoadingCatalog, setIsLoadingCatalog] = useState(true)
 
     // Step 3: Delivery
     const [addressMode, setAddressMode] = useState<'saved' | 'new'>('new')
@@ -30,6 +34,7 @@ export function useOrderWizard() {
     const [detailAddress, setDetailAddress] = useState("")
     const [selectedArea, setSelectedArea] = useState<Area | null>(null)
     const [customerCoords, setCustomerCoords] = useState<{ lat: number; lng: number } | null>(null)
+    const [dueDate, setDueDate] = useState("")
     const [nearestProvider, setNearestProvider] = useState<Provider | null>(null)
     const [isSearchingProvider, setIsSearchingProvider] = useState(false)
     const [mapsLoaded, setMapsLoaded] = useState(false)
@@ -94,6 +99,29 @@ export function useOrderWizard() {
     // UI State
     const [showPreviewModal, setShowPreviewModal] = useState(false)
 
+    useEffect(() => {
+        let cancelled = false
+        async function loadCatalog() {
+            try {
+                const response = await fetch("/api/catalog")
+                const data = await response.json()
+                if (!cancelled) {
+                    setCatalog(data)
+                    setSelectedMaterial((current) => current ?? data.materials?.[0]?.id ?? null)
+                    setSelectedQuality((current) => current ?? data.qualities?.[0]?.id ?? null)
+                }
+            } catch (error) {
+                console.error("Catalog load error:", error)
+            } finally {
+                if (!cancelled) setIsLoadingCatalog(false)
+            }
+        }
+        loadCatalog()
+        return () => {
+            cancelled = true
+        }
+    }, [])
+
     // Actions
     const goNext = useCallback(() => {
         setCurrentStep(prev => Math.min(6, prev + 1))
@@ -149,6 +177,8 @@ export function useOrderWizard() {
                     customerLat: lat,
                     customerLng: lng,
                     estimatedPrintTime: slicedResult?.printTimeMinutes,
+                    quantity,
+                    dueDate: dueDate || undefined,
                 }),
             })
             const data = await response.json()
@@ -183,7 +213,7 @@ export function useOrderWizard() {
         } finally {
             setIsSearchingPrinter(false)
         }
-    }, [selectedMaterial, modelDimensions, slicedResult])
+    }, [selectedMaterial, modelDimensions, quantity, slicedResult, dueDate])
 
     // Select saved address and auto-fill delivery fields
     const selectSavedAddress = useCallback((address: {
@@ -269,13 +299,13 @@ export function useOrderWizard() {
             // Check if file is a G-code file
             if (isGcodeFile(file)) {
                 // Parse G-code directly - no need to slice
-                const stats = await parseGcodeFile(file, selectedMaterial || 'pla')
+                const stats = await parseGcodeFile(file, selectedMaterial || catalog?.materials[0]?.id || "")
 
                 // Create a local URL for the uploaded G-code
                 const gcodeUrl = URL.createObjectURL(file)
 
                 // Auto-select detected material if available
-                if (stats.material) {
+                if (stats.material && catalog?.materials.some((material) => material.id === stats.material)) {
                     setSelectedMaterial(stats.material)
                 }
 
@@ -327,7 +357,7 @@ export function useOrderWizard() {
         } finally {
             setIsSlicing(false)
         }
-    }, [file, selectedMaterial, selectedQuality])
+    }, [file, selectedMaterial, selectedQuality, catalog])
 
     // Auto-parse G-code files when uploaded (so pricing is available immediately)
     useEffect(() => {
@@ -350,86 +380,24 @@ export function useOrderWizard() {
         }
     }, [currentStep, file, selectedMaterial, selectedQuality, selectedArea, recipientName, recipientPhone, selectedPrinter, selectedCourier])
 
-    // Cost Calculation
-    // Default settings (will be overridden by API later)
-    const settings = {
-        markupPercentage: 0.15,
-        platformFeePercentage: 0.10,
-        machineRatePerHour: 10000,
-        estimatedPrintSpeed: 15000, // mm³/hour
-        defaultInfillPercentage: 0.20,
-    }
-
-    // Get material data - for G-code, use selected material (which defaults to detected) or fallback
     const fileIsGcode = file ? isGcodeFile(file) : false
-    const effectiveMaterial = selectedMaterial || 'pla'
-    const materialData = effectiveMaterial
-        ? ({
-            pla: { pricePerGram: 250, density: 1.24 },
-            abs: { pricePerGram: 300, density: 1.04 },
-            petg: { pricePerGram: 350, density: 1.27 },
-            tpu: { pricePerGram: 450, density: 1.21 },
-        } as Record<string, { pricePerGram: number; density: number }>)[effectiveMaterial]
-        : null
-
-    // Get quality multiplier - for G-code, use normal (1.0x) since quality is embedded
-    const qualityMultiplier = fileIsGcode
-        ? 1.0
-        : selectedQuality
-            ? ({ draft: 0.8, normal: 1.0, fine: 1.3 } as Record<string, number>)[selectedQuality] || 1.0
-            : 1.0
-
-    // Calculate costs - prioritize slicedResult data if available
-    let materialCost = 0
-    let timeCost = 0
-
-    if (slicedResult && slicedResult.filamentGrams > 0) {
-        // Use actual data from sliced result or parsed G-code
-        const filamentWeight = slicedResult.filamentGrams
-        const printTimeHours = slicedResult.printTimeMinutes / 60
-
-        // Material cost = weight × price per gram × quantity
-        materialCost = materialData
-            ? Math.round(filamentWeight * materialData.pricePerGram * quantity)
-            : 0
-
-        // Time cost = print hours × machine rate × quantity
-        timeCost = Math.round(printTimeHours * settings.machineRatePerHour * quantity)
-    } else if (modelDimensions?.volume && modelDimensions.volume > 0) {
-        // Fallback: estimate from volume for STL files not yet sliced
-        const volumeMM3 = modelDimensions.volume
-        const volumeCM3 = volumeMM3 / 1000
-
-        // Estimated weight = volume × infill × density
-        const estimatedWeight = materialData
-            ? volumeCM3 * settings.defaultInfillPercentage * materialData.density
-            : 0
-
-        // Material cost = weight × price per gram × quality multiplier × quantity
-        materialCost = materialData
-            ? Math.round(estimatedWeight * materialData.pricePerGram * qualityMultiplier * quantity)
-            : 0
-
-        // Time cost = (volume / print speed) × machine rate × quality multiplier
-        const estimatedHours = volumeMM3 / settings.estimatedPrintSpeed * qualityMultiplier
-        timeCost = Math.round(estimatedHours * settings.machineRatePerHour * quantity)
-    }
-
-    // Subtotal
-    const subtotal = materialCost + timeCost
-
-    // Markup (for provider)
-    const markup = Math.round(subtotal * settings.markupPercentage)
-
-    // Platform fee
-    const platformFee = Math.round(subtotal * settings.platformFeePercentage)
-
-    // Shipping cost (from selected courier)
     const selectedCourierData = courierRates.find(c => c.id === selectedCourier)
-    const shippingCost = selectedCourierData?.price || 0
-
-    // Total
-    const total = subtotal + markup + platformFee + shippingCost
+    const pricing = calculateOrderPricing({
+        material: catalog?.materials.find((material) => material.id === selectedMaterial) ?? null,
+        quality: catalog?.qualities.find((quality) => quality.id === selectedQuality) ?? null,
+        settings: catalog?.settings ?? {
+            markupPercentage: 0,
+            platformFeePercentage: 0,
+            machineRatePerHour: 0,
+            estimatedPrintSpeed: 1,
+            defaultInfillPercentage: 0,
+        },
+        quantity,
+        shippingCost: selectedCourierData?.price || 0,
+        modelVolumeMm3: modelDimensions?.volume,
+        slicedResult,
+        isGcode: fileIsGcode,
+    })
 
     const getNextStepName = useCallback(() => {
         const steps = [
@@ -454,6 +422,8 @@ export function useOrderWizard() {
             selectedMaterial,
             selectedQuality,
             selectedColor,
+            catalog,
+            isLoadingCatalog,
             quantity,
             addressMode,
             selectedSavedAddressId,
@@ -462,6 +432,7 @@ export function useOrderWizard() {
             detailAddress,
             selectedArea,
             customerCoords,
+            dueDate,
             nearestProvider,
             isSearchingProvider,
             mapsLoaded,
@@ -495,6 +466,7 @@ export function useOrderWizard() {
             setDetailAddress,
             setSelectedArea,
             setCustomerCoords,
+            setDueDate,
             setNearestProvider,
             setIsSearchingProvider,
             setMapsLoaded,
@@ -509,13 +481,13 @@ export function useOrderWizard() {
         // Computed
         computed: {
             canProceed: canProceed(),
-            materialCost,
-            timeCost,
-            subtotal,
-            markup,
-            platformFee,
-            shippingCost,
-            total,
+            materialCost: pricing.materialCost,
+            timeCost: pricing.timeCost,
+            subtotal: pricing.subtotal,
+            markup: pricing.markup,
+            platformFee: pricing.platformFee,
+            shippingCost: pricing.shippingCost,
+            total: pricing.total,
             nextStepName: getNextStepName(),
         },
     }

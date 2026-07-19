@@ -1,10 +1,37 @@
 import { prisma } from "@/lib/prisma";
 import { AdminPageHeader, DataCard, StatCard, StatusPill } from "@/components/admin/AdminShell";
+import { AdminActionPanel, AdminButton, AdminFilterForm, AdminInput, AdminSearchInput, AdminSelect } from "@/components/admin/AdminControls";
+import { Card, CardContent } from "@/components/ui/card";
 import { formatAdminCurrency, formatAdminDateTime, getOrderRiskLabel, getStatusTone, humanizeEnum } from "@/lib/admin-metrics";
 import type { Prisma } from "@prisma/client";
 import { adminAssignOrderPrinter, adminUpdateOrderStatus } from "@/actions/admin";
 
 const activeStatuses = ["CONFIRMED", "IN_QUEUE", "SLICING", "PRINTING", "POST_PROCESSING", "PACKING", "SHIPPED"] as const;
+const orderStatusOptions = [
+  { value: "PENDING_PAYMENT", label: "Pending Payment" },
+  { value: "PAYMENT_FAILED", label: "Payment Failed" },
+  { value: "CONFIRMED", label: "Confirmed" },
+  { value: "IN_QUEUE", label: "In Queue" },
+  { value: "SLICING", label: "Slicing" },
+  { value: "PRINTING", label: "Printing" },
+  { value: "POST_PROCESSING", label: "Post Processing" },
+  { value: "PACKING", label: "Packing" },
+  { value: "SHIPPED", label: "Shipped" },
+  { value: "DELIVERED", label: "Delivered" },
+  { value: "COMPLETED", label: "Completed" },
+  { value: "CANCELLED", label: "Cancelled" },
+  { value: "REFUNDED", label: "Refunded" },
+];
+const filterStatusOptions = [
+  { value: "ALL", label: "All status" },
+  ...activeStatuses.map((item) => ({ value: item, label: humanizeEnum(item) })),
+  { value: "PENDING_PAYMENT", label: "Pending Payment" },
+  { value: "PAYMENT_FAILED", label: "Payment Failed" },
+  { value: "DELIVERED", label: "Delivered" },
+  { value: "COMPLETED", label: "Completed" },
+  { value: "CANCELLED", label: "Cancelled" },
+  { value: "REFUNDED", label: "Refunded" },
+];
 
 type PageProps = {
   searchParams: Promise<{ query?: string; status?: string }>;
@@ -67,106 +94,80 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
       </section>
 
       <DataCard title="Order Management">
-        <form className="mb-5 grid gap-3 md:grid-cols-[1fr_220px_auto]">
-          <input name="query" defaultValue={query} placeholder="Cari order, customer, provider, file..." className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-teal-600" />
-          <select name="status" defaultValue={status ?? "ALL"} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-teal-600">
-            <option value="ALL">All status</option>
-            {activeStatuses.map((item) => <option key={item} value={item}>{humanizeEnum(item)}</option>)}
-            <option value="PENDING_PAYMENT">Pending Payment</option>
-            <option value="PAYMENT_FAILED">Payment Failed</option>
-            <option value="DELIVERED">Delivered</option>
-            <option value="COMPLETED">Completed</option>
-            <option value="CANCELLED">Cancelled</option>
-            <option value="REFUNDED">Refunded</option>
-          </select>
-          <button className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white">Filter</button>
-        </form>
+        <AdminFilterForm>
+          <AdminSearchInput name="query" defaultValue={query} placeholder="Cari order, customer, provider, file..." />
+          <AdminSelect name="status" defaultValue={status ?? "ALL"} options={filterStatusOptions} />
+          <AdminButton>Filter</AdminButton>
+        </AdminFilterForm>
 
-        <div className="overflow-hidden rounded-2xl border border-slate-200">
-          <table className="w-full min-w-[980px] text-left text-sm">
-            <thead className="bg-slate-50 text-xs font-black uppercase tracking-widest text-slate-500">
-              <tr>
-                <th className="px-4 py-3">Order</th>
-                <th className="px-4 py-3">Customer</th>
-                <th className="px-4 py-3">Provider / Printer</th>
-                <th className="px-4 py-3">Config</th>
-                <th className="px-4 py-3">Payment</th>
-                <th className="px-4 py-3">Risk</th>
-                <th className="px-4 py-3">Admin Override</th>
-                <th className="px-4 py-3 text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 bg-white">
-              {orders.map((order) => (
-                <tr key={order.id} className="align-top hover:bg-slate-50">
-                  <td className="px-4 py-4">
-                    <p className="font-black text-slate-950">{order.orderNumber}</p>
-                    <p className="mt-1 max-w-48 truncate text-xs font-semibold text-slate-500">{order.stlFileName}</p>
+        <div className="space-y-3">
+          {orders.map((order) => (
+            <Card key={order.id} className="gap-0 rounded-[0.85rem] border-[var(--admin-line)] bg-white py-0 shadow-[var(--admin-shadow-card)]">
+              <CardContent className="p-4">
+                <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr_1fr_1fr_auto] xl:items-start">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-950">{order.orderNumber}</p>
+                    <p className="mt-1 truncate text-xs font-semibold text-slate-500">{order.stlFileName}</p>
                     <p className="mt-1 text-xs text-slate-400">Updated {formatAdminDateTime(order.updatedAt)}</p>
-                  </td>
-                  <td className="px-4 py-4">
-                    <p className="font-bold text-slate-800">{order.user.name}</p>
-                    <p className="text-xs text-slate-500">{order.user.email}</p>
-                  </td>
-                  <td className="px-4 py-4">
-                    <p className="font-bold text-slate-800">{order.provider?.businessName ?? "Belum assigned"}</p>
-                    <p className="text-xs text-slate-500">{order.printer?.name ?? "No printer"}</p>
-                  </td>
-                  <td className="px-4 py-4">
-                    <p className="font-bold text-slate-800">{order.material.name} • {order.quality.name}</p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Customer</p>
+                    <p className="mt-1 truncate font-semibold text-slate-800">{order.user.name}</p>
+                    <p className="truncate text-xs text-slate-500">{order.user.email}</p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Provider / Printer</p>
+                    <p className="mt-1 truncate font-semibold text-slate-800">{order.provider?.businessName ?? "Belum assigned"}</p>
+                    <p className="truncate text-xs text-slate-500">{order.printer?.name ?? "No printer"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Config & Risk</p>
+                    <p className="mt-1 font-semibold text-slate-800">{order.material.name} • {order.quality.name}</p>
                     <p className="text-xs text-slate-500">Qty {order.quantity} • {order.estimatedPrintTime ?? 0} min</p>
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="flex flex-col gap-2">
-                      <StatusPill className={getStatusTone(order.status)}>{humanizeEnum(order.status)}</StatusPill>
-                      <StatusPill className={getStatusTone(order.payment?.status ?? "PENDING")}>{humanizeEnum(order.payment?.status ?? "PENDING")}</StatusPill>
-                    </div>
-                  </td>
-                  <td className="px-4 py-4">
-                    <p className="text-sm font-black text-slate-800">{getOrderRiskLabel(order.status, order.updatedAt)}</p>
-                    <p className="mt-1 text-xs text-slate-500">{order.statusHistory[0]?.note ?? "No latest note"}</p>
-                  </td>
-                  <td className="px-4 py-4">
-                    <form key={`${order.id}-${order.status}`} action={adminUpdateOrderStatus} className="grid min-w-64 gap-2 rounded-2xl bg-slate-50 p-3">
+                    <p className="mt-2 text-xs font-semibold text-slate-800">{getOrderRiskLabel(order.status, order.updatedAt)}</p>
+                    <p className="mt-1 line-clamp-2 text-xs text-slate-500">{order.statusHistory[0]?.note ?? "No latest note"}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 xl:justify-end">
+                    <StatusPill className={getStatusTone(order.status)}>{humanizeEnum(order.status)}</StatusPill>
+                    <StatusPill className={getStatusTone(order.payment?.status ?? "PENDING")}>{humanizeEnum(order.payment?.status ?? "PENDING")}</StatusPill>
+                    <p className="basis-full text-left text-lg font-semibold text-slate-950 xl:text-right">{formatAdminCurrency(order.totalPrice)}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 border-t border-[var(--admin-line-soft)] pt-4 xl:grid-cols-2">
+                  <form key={`${order.id}-${order.status}`} action={adminUpdateOrderStatus}>
+                    <AdminActionPanel className="grid gap-2 sm:grid-cols-[220px_1fr_auto]">
                       <input type="hidden" name="orderId" value={order.id} />
-                      <select name="status" defaultValue={order.status} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold outline-none focus:border-teal-600">
-                        <option value="PENDING_PAYMENT">Pending Payment</option>
-                        <option value="PAYMENT_FAILED">Payment Failed</option>
-                        <option value="CONFIRMED">Confirmed</option>
-                        <option value="IN_QUEUE">In Queue</option>
-                        <option value="SLICING">Slicing</option>
-                        <option value="PRINTING">Printing</option>
-                        <option value="POST_PROCESSING">Post Processing</option>
-                        <option value="PACKING">Packing</option>
-                        <option value="SHIPPED">Shipped</option>
-                        <option value="DELIVERED">Delivered</option>
-                        <option value="COMPLETED">Completed</option>
-                        <option value="CANCELLED">Cancelled</option>
-                        <option value="REFUNDED">Refunded</option>
-                      </select>
-                      <input name="reason" minLength={5} placeholder="Reason optional; wajib untuk cancel/refund/fail" className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-600" />
-                      <button className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white">Apply</button>
-                    </form>
-                    <form key={`${order.id}-${order.printerId ?? "none"}`} action={adminAssignOrderPrinter} className="mt-3 grid min-w-64 gap-2 rounded-2xl bg-teal-50 p-3">
+                      <AdminSelect name="status" defaultValue={order.status} options={orderStatusOptions} triggerClassName="h-8 text-xs" />
+                      <AdminInput name="reason" minLength={5} placeholder="Reason optional; wajib untuk cancel/refund/fail" className="h-8 text-xs" />
+                      <AdminButton className="h-8 bg-[#17201d] text-xs text-white hover:bg-[#075e57]">Apply</AdminButton>
+                    </AdminActionPanel>
+                  </form>
+                  <form key={`${order.id}-${order.printerId ?? "none"}`} action={adminAssignOrderPrinter}>
+                    <AdminActionPanel className="grid gap-2 border-[#d1e1dc] bg-[#eef5f2] sm:grid-cols-[minmax(220px,1fr)_1fr_auto]">
                       <input type="hidden" name="orderId" value={order.id} />
-                      <select name="printerId" defaultValue={order.printerId ?? "UNASSIGNED"} className="rounded-xl border border-teal-100 px-3 py-2 text-xs font-bold outline-none focus:border-teal-700">
-                        <option value="UNASSIGNED">Unassigned</option>
-                        {printers.map((printer) => (
-                          <option key={printer.id} value={printer.id}>{printer.provider.businessName} / {printer.name}</option>
-                        ))}
-                      </select>
-                      <input name="reason" required minLength={5} placeholder="Assignment reason" className="rounded-xl border border-teal-100 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-700" />
-                      <button className="rounded-xl bg-teal-800 px-3 py-2 text-xs font-black text-white">Assign</button>
-                    </form>
-                  </td>
-                  <td className="px-4 py-4 text-right font-black text-slate-950">{formatAdminCurrency(order.totalPrice)}</td>
-                </tr>
-              ))}
-              {orders.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-10 text-center text-sm font-semibold text-slate-500">Tidak ada order sesuai filter.</td></tr>
-              )}
-            </tbody>
-          </table>
+                      <AdminSelect
+                        name="printerId"
+                        defaultValue={order.printerId ?? "UNASSIGNED"}
+                        options={[
+                          { value: "UNASSIGNED", label: "Unassigned" },
+                          ...printers.map((printer) => ({ value: printer.id, label: `${printer.provider.businessName} / ${printer.name}` })),
+                        ]}
+                        triggerClassName="h-8 border-[#c6ddd6] text-xs"
+                      />
+                      <AdminInput name="reason" required minLength={5} placeholder="Assignment reason" className="h-8 border-[#c6ddd6] text-xs" />
+                      <AdminButton className="h-8 bg-[#075e57] text-xs text-white hover:bg-[#064f49]">Assign</AdminButton>
+                    </AdminActionPanel>
+                  </form>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          {orders.length === 0 && (
+            <Card className="gap-0 rounded-[0.85rem] border-[var(--admin-line)] bg-white py-0 shadow-[var(--admin-shadow-card)]">
+              <CardContent className="px-4 py-10 text-center text-sm font-semibold text-slate-500">Tidak ada order sesuai filter.</CardContent>
+            </Card>
+          )}
         </div>
       </DataCard>
     </div>

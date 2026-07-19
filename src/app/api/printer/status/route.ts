@@ -3,6 +3,7 @@ import { triggerProviderEvent, PrinterStatus } from "@/lib/pusher"
 import { NextRequest, NextResponse } from "next/server"
 import { PrinterStatus as PrismaStatus } from "@prisma/client"
 import { handlePrinterJobEvent } from "@/lib/printer-order-events"
+import { buildPrinterHeartbeatUpdate } from "@/lib/printer-state"
 
 // Extended PrinterStatus with event info
 interface PrinterStatusWithEvent extends PrinterStatus {
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
         // Validate printer exists
         const printer = await prisma.printer.findUnique({
             where: { id: printerId },
-            select: { id: true, providerId: true }
+            select: { id: true, providerId: true, isAcceptingOrders: true }
         })
 
         if (!printer) {
@@ -59,12 +60,24 @@ export async function POST(request: NextRequest) {
             offline: "OFFLINE",
         }
 
+        const nextStatus = statusMap[state]
+        if (!nextStatus) {
+            return NextResponse.json(
+                { error: `Unsupported printer state: ${state}` },
+                { status: 400 }
+            )
+        }
+
+        const stateUpdate = buildPrinterHeartbeatUpdate(
+            nextStatus,
+            printer.isAcceptingOrders
+        )
+
         // Update printer status in database
         await prisma.printer.update({
             where: { id: printerId },
             data: {
-                status: statusMap[state] || "ONLINE",
-                lastSeenAt: new Date(),
+                ...stateUpdate,
                 currentJobId: currentJob?.id || null,
                 webcamUrl: webcamUrl || null,
                 // Save last known temperatures for persistence

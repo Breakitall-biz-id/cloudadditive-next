@@ -3,15 +3,30 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
-import { PrinterStatus, PrintTech } from "@prisma/client"
+import { PrinterStatus, PrintTech, type Prisma } from "@prisma/client"
 import crypto from "crypto"
+import { loadMatchingConfig } from "@/lib/printer-matching/runtime-config"
+import { resolvePrinterStateUpdate, resolveRequestedReadiness } from "@/lib/printer-state"
+
+type PrinterFormData = {
+    name?: unknown
+    model?: unknown
+    volumeX?: unknown
+    volumeY?: unknown
+    volumeZ?: unknown
+    octoprintUrl?: unknown
+    octoprintApiKey?: unknown
+    isAcceptingOrders?: unknown
+    preprocessingTime?: unknown
+    currentMaterialId?: unknown
+}
 
 // Generate unique connection token for OctoPrint plugin auth
 function generateConnectionToken(): string {
     return `cpt_${crypto.randomBytes(32).toString("hex")}`
 }
 
-export async function addPrinter(formData: any) {
+export async function addPrinter(formData: PrinterFormData) {
     const session = await auth()
 
     // 1. Auth & role check
@@ -37,14 +52,14 @@ export async function addPrinter(formData: any) {
         const printer = await prisma.printer.create({
             data: {
                 providerId: provider.id,
-                name: formData.name,
-                model: formData.model,
+                name: String(formData.name ?? ""),
+                model: formData.model ? String(formData.model) : null,
                 technology: PrintTech.FDM, // Default for now, should add to form
-                buildWidth: parseInt(formData.volumeX),
-                buildDepth: parseInt(formData.volumeY),
-                buildHeight: parseInt(formData.volumeZ),
-                octoprintUrl: formData.octoprintUrl || null,
-                octoprintApiKey: formData.octoprintApiKey || null,
+                buildWidth: parseInt(String(formData.volumeX)),
+                buildDepth: parseInt(String(formData.volumeY)),
+                buildHeight: parseInt(String(formData.volumeZ)),
+                octoprintUrl: formData.octoprintUrl ? String(formData.octoprintUrl) : null,
+                octoprintApiKey: formData.octoprintApiKey ? String(formData.octoprintApiKey) : null,
                 connectionToken: generateConnectionToken(), // For Pusher auth
                 status: PrinterStatus.OFFLINE // Start as offline until plugin connects
             }
@@ -79,12 +94,13 @@ export async function togglePrinterStatus(printerId: string, status: PrinterStat
 
         await prisma.printer.update({
             where: { id: printerId },
-            data: { status }
+            data: resolvePrinterStateUpdate(status, printer.isAcceptingOrders)
         })
 
         revalidatePath("/provider/dashboard")
         return { success: true }
     } catch (error) {
+        console.error("Failed to update printer status:", error)
         return { error: "Failed to update status" }
     }
 }
@@ -127,7 +143,7 @@ export async function getPrinter(printerId: string) {
 }
 
 // Update printer details
-export async function updatePrinter(printerId: string, formData: any) {
+export async function updatePrinter(printerId: string, formData: PrinterFormData) {
     const session = await auth()
     if (!session?.user?.id || session.user.role !== "PROVIDER") {
         return { error: "Unauthorized" }
@@ -144,35 +160,60 @@ export async function updatePrinter(printerId: string, formData: any) {
             return { error: "Printer not found" }
         }
 
-        const data: any = {
-            name: formData.name,
-            model: formData.model,
-            buildWidth: parseInt(formData.volumeX),
-            buildDepth: parseInt(formData.volumeY),
-            buildHeight: parseInt(formData.volumeZ),
+        const data: Prisma.PrinterUncheckedUpdateInput = {
+            name: String(formData.name ?? ""),
+            model: formData.model ? String(formData.model) : null,
+            buildWidth: parseInt(String(formData.volumeX)),
+            buildDepth: parseInt(String(formData.volumeY)),
+            buildHeight: parseInt(String(formData.volumeZ)),
         }
 
         // Add optional readiness fields if present
         if (formData.isAcceptingOrders !== undefined) {
-            data.isAcceptingOrders = formData.isAcceptingOrders === 'true' || formData.isAcceptingOrders === true;
+            const requested = formData.isAcceptingOrders === 'true' || formData.isAcceptingOrders === true;
+            const config = await loadMatchingConfig();
+            data.isAcceptingOrders = resolveRequestedReadiness(
+                requested,
+                printer,
+                new Date(),
+                config.heartbeatTimeoutSeconds
+            );
         }
         if (formData.preprocessingTime !== undefined) {
-            data.preprocessingTime = parseInt(formData.preprocessingTime);
+            data.preprocessingTime = parseInt(String(formData.preprocessingTime));
         }
         if (formData.currentMaterialId !== undefined) {
             // Handle "null" string or actual null
             data.currentMaterialId = formData.currentMaterialId === "null" || !formData.currentMaterialId
                 ? null
-                : formData.currentMaterialId;
+                : String(formData.currentMaterialId);
         }
 
-        const updatedPrinter = await prisma.printer.update({
-            where: { id: printerId },
-            data
+        await prisma.$transaction(async (tx) => {
+            await tx.printer.update({
+                where: { id: printerId },
+                data
+            })
+
+            if (typeof data.currentMaterialId === "string") {
+                await tx.printerMaterial.upsert({
+                    where: {
+                        printerId_materialId: {
+                            printerId,
+                            materialId: data.currentMaterialId,
+                        },
+                    },
+                    update: {},
+                    create: {
+                        printerId,
+                        materialId: data.currentMaterialId,
+                    },
+                })
+            }
         })
 
         // If enabled accepting orders, trigger queue processing
-        if (data.isAcceptingOrders) {
+        if (!printer.isAcceptingOrders && data.isAcceptingOrders) {
             // Import dynamically to avoid circular dependencies if any
             const { processQueueForPrinter } = await import("@/lib/printer-matching");
             await processQueueForPrinter(printerId);
@@ -269,7 +310,7 @@ export async function getMaterials() {
         })
         return { success: true, materials }
     } catch (error) {
+        console.error("Failed to load materials:", error)
         return { error: "Failed to load materials" }
     }
 }
-

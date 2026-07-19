@@ -1,8 +1,14 @@
 export interface Material {
     id: string
     name: string
+    type?: string
+    description?: string | null
     pricePerGram: number  // IDR per gram
     density: number       // g/cm³
+    diameter?: number
+    nozzleTemp?: number | null
+    bedTemp?: number | null
+    colors?: Color[]
 }
 
 export interface Color {
@@ -14,7 +20,10 @@ export interface Color {
 export interface Quality {
     id: string
     name: string
+    description?: string | null
     multiplier: number
+    priceMultiplier: number
+    speedMultiplier: number
     layerHeight: number  // mm
 }
 
@@ -79,6 +88,12 @@ export interface SystemSettings {
     defaultInfillPercentage: number
 }
 
+export interface CatalogData {
+    materials: Material[]
+    qualities: Quality[]
+    settings: SystemSettings
+}
+
 // Order Wizard State
 export interface OrderWizardState {
     // Step
@@ -100,6 +115,7 @@ export interface OrderWizardState {
     detailAddress: string
     selectedArea: Area | null
     customerCoords: { lat: number; lng: number } | null
+    dueDate: string
     nearestProvider: Provider | null
     isSearchingProvider: boolean
     mapsLoaded: boolean
@@ -133,6 +149,7 @@ export interface OrderWizardActions {
     setDetailAddress: (address: string) => void
     setSelectedArea: (area: Area | null) => void
     setCustomerCoords: (coords: { lat: number; lng: number } | null) => void
+    setDueDate: (date: string) => void
     setNearestProvider: (provider: Provider | null) => void
     setIsSearchingProvider: (searching: boolean) => void
     setMapsLoaded: (loaded: boolean) => void
@@ -167,13 +184,6 @@ export const ORDER_STEPS: OrderStep[] = [
     { id: 6, name: "Payment", icon: "payments" },
 ]
 
-export const MATERIALS: Material[] = [
-    { id: "pla", name: "PLA", pricePerGram: 250, density: 1.24 },
-    { id: "abs", name: "ABS", pricePerGram: 300, density: 1.04 },
-    { id: "petg", name: "PETG", pricePerGram: 350, density: 1.27 },
-    { id: "tpu", name: "TPU Flex", pricePerGram: 450, density: 1.21 },
-]
-
 export const COLORS: Color[] = [
     { id: "white", name: "White", hex: "#ffffff" },
     { id: "black", name: "Black", hex: "#1a1a1a" },
@@ -181,12 +191,6 @@ export const COLORS: Color[] = [
     { id: "blue", name: "Blue", hex: "#3b82f6" },
     { id: "green", name: "Green", hex: "#22c55e" },
     { id: "orange", name: "Orange", hex: "#f97316" },
-]
-
-export const QUALITIES: Quality[] = [
-    { id: "draft", name: "Draft (0.3mm)", multiplier: 0.8, layerHeight: 0.3 },
-    { id: "normal", name: "Normal (0.2mm)", multiplier: 1.0, layerHeight: 0.2 },
-    { id: "fine", name: "Fine (0.1mm)", multiplier: 1.3, layerHeight: 0.1 },
 ]
 
 export const COURIERS: Courier[] = [

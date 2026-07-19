@@ -1,7 +1,8 @@
 import type { OrderStatus, PaymentStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getTransactionStatus, verifyNotificationSignature } from "@/lib/midtrans";
-import { assignOrderToPrinter, processQueueForPrinter } from "@/lib/printer-matching";
+import { processQueueForPrinter } from "@/lib/printer-matching";
+import { printerMatchingService, type PrinterMatchingResult } from "@/lib/printer-matching/service";
 import { sendOrderNotifications } from "@/lib/order-notifications";
 
 type MidtransNotificationPayload = {
@@ -21,6 +22,40 @@ type ProcessWebhookResult = {
 };
 
 const PAYMENT_PENDING_ORDER_STATUSES: OrderStatus[] = ["PENDING_PAYMENT", "PAYMENT_FAILED"];
+
+export type PaidAssignmentDecision = {
+    status: "IN_QUEUE" | "CONFIRMED";
+    printerId: string | null;
+    providerId: string | null;
+    reassigned: boolean;
+};
+
+export function decidePaidAssignment(
+    currentPrinterId: string | null,
+    matchingResult: PrinterMatchingResult
+): PaidAssignmentDecision {
+    if (!matchingResult.success) {
+        return {
+            status: "CONFIRMED",
+            printerId: null,
+            providerId: null,
+            reassigned: false,
+        };
+    }
+
+    return {
+        status: "IN_QUEUE",
+        printerId: matchingResult.bestPrinter.printerId,
+        providerId: matchingResult.bestPrinter.providerId,
+        reassigned: currentPrinterId !== matchingResult.bestPrinter.printerId,
+    };
+}
+
+export async function claimPaidOrderTransition(
+    claim: () => Promise<number>
+): Promise<boolean> {
+    return (await claim()) === 1;
+}
 
 function mapTransactionStatusToPaymentStatus(
     transactionStatus: string | undefined,
@@ -136,7 +171,12 @@ export async function processMidtransWebhook(
         };
     }
 
-    const previousPaymentStatus = existingOrder.payment?.status ?? "PENDING";
+    const paidAssignment = nextPaymentStatus === "PAID"
+        ? decidePaidAssignment(
+            existingOrder.printerId,
+            await printerMatchingService.findByOrderId(existingOrder.id)
+        )
+        : null;
     const targetOrderStatus = mapPaymentToOrderStatus(
         existingOrder.status,
         nextPaymentStatus,
@@ -173,8 +213,50 @@ export async function processMidtransWebhook(
             });
         }
 
-        let finalOrderStatus = existingOrder.status;
-        if (targetOrderStatus && targetOrderStatus !== existingOrder.status) {
+        let settlementClaimed = false;
+
+        if (nextPaymentStatus === "PAID" && paidAssignment) {
+            settlementClaimed = await claimPaidOrderTransition(async () => {
+                const claim = await tx.order.updateMany({
+                    where: {
+                        id: existingOrder.id,
+                        status: { in: PAYMENT_PENDING_ORDER_STATUSES },
+                    },
+                    data: {
+                        status: paidAssignment.status,
+                        printerId: paidAssignment.printerId,
+                        providerId: paidAssignment.providerId,
+                        queuePosition: null,
+                    },
+                });
+                return claim.count;
+            });
+
+            if (settlementClaimed) {
+                if (paidAssignment.status === "IN_QUEUE" && paidAssignment.printerId) {
+                    const queuedAhead = await tx.order.count({
+                        where: {
+                            printerId: paidAssignment.printerId,
+                            status: "IN_QUEUE",
+                            id: { not: existingOrder.id },
+                        },
+                    });
+                    await tx.order.update({
+                        where: { id: existingOrder.id },
+                        data: { queuePosition: queuedAhead + 1 },
+                    });
+                }
+
+                await tx.orderStatusHistory.create({
+                    data: {
+                        orderId: existingOrder.id,
+                        status: paidAssignment.status,
+                        note: `Midtrans ${transactionStatus || "unknown"} (PAID) via ${paymentType || "unknown"} [${source}]`,
+                        changedBy: "SYSTEM",
+                    },
+                });
+            }
+        } else if (targetOrderStatus && targetOrderStatus !== existingOrder.status) {
             const orderUpdateData: Prisma.OrderUpdateInput = {
                 status: targetOrderStatus,
                 queuePosition: targetOrderStatus === "IN_QUEUE" ? undefined : null,
@@ -208,24 +290,28 @@ export async function processMidtransWebhook(
                     changedBy: "SYSTEM",
                 },
             });
-
-            finalOrderStatus = targetOrderStatus;
         }
 
-        return { finalOrderStatus };
+        const currentOrder = await tx.order.findUnique({
+            where: { id: existingOrder.id },
+            select: { status: true, printerId: true },
+        });
+
+        return {
+            finalOrderStatus: currentOrder?.status ?? existingOrder.status,
+            assignedPrinterId: currentOrder?.printerId ?? null,
+            settlementClaimed,
+        };
     });
 
-    const transitionedToPaid = previousPaymentStatus !== "PAID" && nextPaymentStatus === "PAID";
-    if (transitionedToPaid) {
+    if (updateResult.settlementClaimed) {
         sendOrderNotifications(existingOrder.id).catch((err) =>
             console.error(`[MidtransWebhook:${source}] Notification dispatch failed:`, err)
         );
 
         try {
-            if (existingOrder.printerId) {
-                await processQueueForPrinter(existingOrder.printerId);
-            } else {
-                await assignOrderToPrinter(existingOrder.id);
+            if (updateResult.assignedPrinterId) {
+                await processQueueForPrinter(updateResult.assignedPrinterId);
             }
         } catch (queueError) {
             console.error(`[MidtransWebhook:${source}] Assignment/queue processing failed:`, queueError);

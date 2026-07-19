@@ -29,6 +29,7 @@ export function StepDelivery({ wizard }: StepDeliveryProps) {
     const [manualCity, setManualCity] = useState(state.selectedArea?.administrativeLevel.city || "")
     const [manualDistrict, setManualDistrict] = useState(state.selectedArea?.administrativeLevel.district || "")
     const [manualPostalCode, setManualPostalCode] = useState(state.selectedArea?.postalCode || "")
+    const [minDueDate] = useState(() => new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10))
 
     const useManualLocation = () => {
         if (!manualProvince || !manualCity || !manualPostalCode) return
@@ -197,6 +198,24 @@ export function StepDelivery({ wizard }: StepDeliveryProps) {
 
             {/* Recipient Details */}
             <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-6">
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <label className="text-xs font-bold text-amber-700 uppercase tracking-widest mb-2 block">
+                        Kapan pesanan dibutuhkan?
+                    </label>
+                    <div className="grid gap-3 md:grid-cols-[260px_1fr] md:items-center">
+                        <input
+                            type="date"
+                            min={minDueDate}
+                            value={state.dueDate}
+                            onChange={(event) => actions.setDueDate(event.target.value)}
+                            className="w-full px-4 py-3 rounded-xl border border-amber-200 bg-white text-slate-800 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                        />
+                        <p className="text-sm text-amber-800">
+                            Opsional. Jika diisi, deadline ini akan disimpan untuk prioritas routing dan optimasi jadwal berikutnya.
+                        </p>
+                    </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">Nama Penerima</label>

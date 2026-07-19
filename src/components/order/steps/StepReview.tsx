@@ -2,7 +2,6 @@
 
 import { useEffect } from "react"
 import type { UseOrderWizardReturn } from "@/hooks/useOrderWizard"
-import { MATERIALS, QUALITIES } from "@/types/order"
 import { isGcodeFile } from "@/lib/gcode-parser"
 
 interface StepReviewProps {
@@ -12,11 +11,14 @@ interface StepReviewProps {
 export function StepReview({ wizard }: StepReviewProps) {
     const { state, computed, actions } = wizard
 
-    const material = MATERIALS.find(m => m.id === state.selectedMaterial)
-    const quality = QUALITIES.find(q => q.id === state.selectedQuality)
+    const material = state.catalog?.materials.find(m => m.id === state.selectedMaterial)
+    const quality = state.catalog?.qualities.find(q => q.id === state.selectedQuality)
     const courier = state.courierRates.find(c => c.id === state.selectedCourier)
 
     const fileIsGcode = state.file ? isGcodeFile(state.file) : false
+    const dueDateLabel = state.dueDate
+        ? new Date(`${state.dueDate}T12:00:00`).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })
+        : "As soon as possible"
 
     // Trigger slicing/parsing when entering Review step
     useEffect(() => {
@@ -120,6 +122,9 @@ export function StepReview({ wizard }: StepReviewProps) {
                     <p className="font-bold text-slate-900">{state.recipientName}</p>
                     <p className="text-slate-500">{state.recipientPhone}</p>
                     <p className="text-slate-500">{state.detailAddress}, {state.selectedArea?.name}</p>
+                    <p className="pt-3 text-sm text-slate-600">
+                        <span className="font-bold text-slate-900">Needed by:</span> {dueDateLabel}
+                    </p>
                 </div>
             </div>
 

@@ -178,7 +178,7 @@ The map shows customer scenario points, provider/printer locations, allocation l
 - `printer-matching/service`: Prisma candidate loading and production assignment.
 - `printer-matching/simulation`: pure sequential batch allocation using virtual queue state.
 - Admin server actions: save configuration and retrieve current candidate data.
-- Admin route/API: validate and run dry simulations under admin authorization.
+- Admin server boundary (server action or route handler): validate and run dry simulations under admin authorization.
 
 Production matching and simulation call the same pure availability and scoring modules. The simulator must not contain a second copy of the algorithm.
 

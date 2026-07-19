@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma"
 import { triggerPrinterEvent } from "@/lib/pusher"
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
+import { loadMatchingConfig } from "@/lib/printer-matching/runtime-config"
+import { getPrinterStartBlockReason } from "@/lib/printer-state"
 
 /**
  * Send commands to OctoPrint printer via Pusher.
@@ -67,6 +69,21 @@ export async function POST(request: NextRequest) {
                 { error: `Invalid command. Must be one of: ${validCommands.join(", ")}` },
                 { status: 400 }
             )
+        }
+
+        if (command === "job:start") {
+            const config = await loadMatchingConfig()
+            const startBlockReason = getPrinterStartBlockReason(
+                printer,
+                new Date(),
+                config.heartbeatTimeoutSeconds
+            )
+            if (startBlockReason) {
+                return NextResponse.json(
+                    { error: startBlockReason },
+                    { status: 409 }
+                )
+            }
         }
 
         // Send command to printer via Pusher

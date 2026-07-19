@@ -4,6 +4,10 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
+  parseMaterialCatalogForm,
+  parsePrintQualityCatalogForm,
+} from "@/lib/admin-catalog-utils";
+import {
   buildAuditMetadata,
   normalizeAuditReason,
   normalizeOptionalAuditReason,
@@ -11,6 +15,8 @@ import {
   parsePositiveNumberInput,
 } from "@/lib/admin-action-utils";
 import type { AdminActionType, OrderStatus, PaymentStatus, PrinterStatus, Prisma, Role } from "@prisma/client";
+import { loadMatchingConfig } from "@/lib/printer-matching/runtime-config";
+import { resolvePrinterStateUpdate, validateAcceptingOrders } from "@/lib/printer-state";
 
 async function requireAdmin() {
   const session = await auth();
@@ -278,7 +284,7 @@ export async function adminUpdatePrinterState(formData: FormData) {
 
   const printer = await prisma.printer.findUnique({
     where: { id: printerId },
-    select: { id: true, name: true, status: true, isAcceptingOrders: true },
+    select: { id: true, name: true, status: true, isAcceptingOrders: true, lastSeenAt: true },
   });
   if (!printer) throw new Error("Printer not found");
 
@@ -287,10 +293,19 @@ export async function adminUpdatePrinterState(formData: FormData) {
     `Printer ${printer.name} updated from ${printer.status} to ${nextStatus}`
   );
 
+  const stateUpdate = resolvePrinterStateUpdate(nextStatus, isAcceptingOrders);
+  const config = await loadMatchingConfig();
+  stateUpdate.isAcceptingOrders = validateAcceptingOrders(
+    stateUpdate.isAcceptingOrders,
+    { status: stateUpdate.status, lastSeenAt: printer.lastSeenAt },
+    new Date(),
+    config.heartbeatTimeoutSeconds
+  );
+
   await prisma.$transaction(async (tx) => {
     await tx.printer.update({
       where: { id: printerId },
-      data: { status: nextStatus, isAcceptingOrders },
+      data: stateUpdate,
     });
 
     await writeAudit(tx, {
@@ -302,7 +317,7 @@ export async function adminUpdatePrinterState(formData: FormData) {
       metadata: buildAuditMetadata({
         name: printer.name,
         before: { status: printer.status, isAcceptingOrders: printer.isAcceptingOrders },
-        after: { status: nextStatus, isAcceptingOrders },
+        after: stateUpdate,
       }),
     });
   });
@@ -373,6 +388,61 @@ export async function setMaterialActive(formData: FormData) {
   });
 
   revalidatePath("/admin/settings");
+  revalidatePath("/order");
+  revalidatePath("/provider/dashboard/settings");
+}
+
+export async function upsertMaterialCatalogItem(formData: FormData) {
+  const admin = await requireAdmin();
+  const parsed = parseMaterialCatalogForm(formData);
+  const reason = normalizeOptionalAuditReason(
+    formData.get("reason"),
+    `Material ${parsed.data.name} catalog updated by admin`
+  );
+
+  const before = parsed.materialId
+    ? await prisma.material.findUnique({
+        where: { id: parsed.materialId },
+        include: { colors: true },
+      })
+    : null;
+
+  const materialId = parsed.materialId || parsed.data.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  if (!materialId) throw new Error("Material ID could not be generated");
+
+  await prisma.$transaction(async (tx) => {
+    await tx.material.upsert({
+      where: { id: materialId },
+      create: {
+        id: materialId,
+        ...parsed.data,
+        colors: { create: parsed.colors },
+      },
+      update: {
+        ...parsed.data,
+        colors: {
+          deleteMany: {},
+          create: parsed.colors,
+        },
+      },
+    });
+
+    await writeAudit(tx, {
+      actorId: admin.id,
+      action: "MATERIAL_UPDATED",
+      entityType: "Material",
+      entityId: materialId,
+      reason,
+      metadata: buildAuditMetadata({
+        before,
+        after: { ...parsed.data, colors: parsed.colors },
+      }),
+    });
+  });
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/order");
+  revalidatePath("/provider/dashboard/settings");
 }
 
 export async function setPrintQualityActive(formData: FormData) {
@@ -404,6 +474,42 @@ export async function setPrintQualityActive(formData: FormData) {
   });
 
   revalidatePath("/admin/settings");
+  revalidatePath("/order");
+}
+
+export async function upsertPrintQualityCatalogItem(formData: FormData) {
+  const admin = await requireAdmin();
+  const parsed = parsePrintQualityCatalogForm(formData);
+  const reason = normalizeOptionalAuditReason(
+    formData.get("reason"),
+    `Print quality ${parsed.data.name} catalog updated by admin`
+  );
+
+  const before = parsed.qualityId
+    ? await prisma.printQuality.findUnique({ where: { id: parsed.qualityId } })
+    : null;
+  const qualityId = parsed.qualityId || parsed.data.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  if (!qualityId) throw new Error("Quality ID could not be generated");
+
+  await prisma.$transaction(async (tx) => {
+    await tx.printQuality.upsert({
+      where: { id: qualityId },
+      create: { id: qualityId, ...parsed.data },
+      update: parsed.data,
+    });
+
+    await writeAudit(tx, {
+      actorId: admin.id,
+      action: "PRINT_QUALITY_UPDATED",
+      entityType: "PrintQuality",
+      entityId: qualityId,
+      reason,
+      metadata: buildAuditMetadata({ before, after: parsed.data }),
+    });
+  });
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/order");
 }
 
 export async function updateSystemSettings(formData: FormData) {

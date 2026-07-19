@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "cloudadditive-dev",
+      "runtimeExecutable": "/private/tmp/claude-501/-Users-ftiuii-Documents-Projects-cloud-print-cloudadditive-next/72c3e649-485a-4173-8c91-56949a04e5c7/scratchpad/dev-arm64.sh",
+      "runtimeArgs": [],
+      "port": 3000
+    }
+  ]
+}

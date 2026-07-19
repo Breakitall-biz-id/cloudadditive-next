@@ -114,6 +114,14 @@ async function main() {
             machineRatePerHour: 10000,
             estimatedPrintSpeed: 15000,
             defaultInfillPercentage: 0.20,
+            matchingDistanceWeight: 0.25,
+            matchingQueueDurationWeight: 0.35,
+            matchingQueueCountWeight: 0.25,
+            matchingLoadedMaterialWeight: 0.15,
+            matchingHeartbeatTimeoutSeconds: 120,
+            matchingMaxDistanceKm: 100,
+            matchingMaxQueueMinutes: 1440,
+            matchingMaxQueueJobs: 20,
         },
     })
     console.log('✅ Created system settings')
@@ -125,6 +133,7 @@ async function main() {
             currentMaterialId: 'pla',
             isAcceptingOrders: true,
             status: 'ONLINE',
+            lastSeenAt: new Date(),
         },
         create: {
             id: 'printer-1',
@@ -136,6 +145,7 @@ async function main() {
             buildDepth: 210,
             buildHeight: 210,
             status: 'ONLINE',
+            lastSeenAt: new Date(),
             currentMaterialId: 'pla',
             isAcceptingOrders: true,
         },

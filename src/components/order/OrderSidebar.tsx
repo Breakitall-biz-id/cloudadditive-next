@@ -1,9 +1,8 @@
 "use client"
 
-import { useMemo, useCallback } from "react"
+import { useCallback } from "react"
 import dynamic from "next/dynamic"
 import type { UseOrderWizardReturn } from "@/hooks/useOrderWizard"
-import { MATERIALS, QUALITIES } from "@/types/order"
 import { isGcodeFile } from "@/lib/gcode-parser"
 
 // Dynamic import Model3DViewer
@@ -36,15 +35,14 @@ interface OrderSidebarProps {
 export function OrderSidebar({ wizard }: OrderSidebarProps) {
     const { state, actions, computed } = wizard
 
-    // Memoize order ID so it doesn't change on every render
-    const orderId = useMemo(() => Math.floor(Math.random() * 99999), [])
-
     const is3DFile = state.file && (
         state.file.name.toLowerCase().endsWith('.stl') ||
         state.file.name.toLowerCase().endsWith('.obj')
     )
 
     const isGcode = state.file ? isGcodeFile(state.file) : false
+    const selectedMaterial = state.catalog?.materials.find(m => m.id === state.selectedMaterial)
+    const selectedQuality = state.catalog?.qualities.find(q => q.id === state.selectedQuality)
 
     // Memoize the callback to prevent re-renders
     const handleModelLoad = useCallback((info: { width: number; height: number; depth: number; volume: number }) => {
@@ -63,7 +61,7 @@ export function OrderSidebar({ wizard }: OrderSidebarProps) {
                 <div>
                     <div className="flex items-center justify-between mb-2">
                         <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Order Summary</h3>
-                        <span className="text-xs font-mono font-bold text-primary">#CA-{orderId}</span>
+                        <span className="text-xs font-mono font-bold text-primary">DRAFT</span>
                     </div>
                     <div className="h-[1px] w-full bg-slate-100"></div>
                 </div>
@@ -130,7 +128,7 @@ export function OrderSidebar({ wizard }: OrderSidebarProps) {
                                 <span className="text-violet-600 font-medium">G-code • Pre-sliced</span>
                             ) : (
                                 <>
-                                    {state.selectedMaterial ? MATERIALS.find(m => m.id === state.selectedMaterial)?.name : "—"} • {state.selectedQuality ? QUALITIES.find(q => q.id === state.selectedQuality)?.name : "—"}
+                                    {selectedMaterial?.name ?? "—"} • {selectedQuality?.name ?? "—"}
                                 </>
                             )}
                         </p>

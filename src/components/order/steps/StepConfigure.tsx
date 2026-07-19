@@ -1,7 +1,6 @@
 "use client"
 
 import type { UseOrderWizardReturn } from "@/hooks/useOrderWizard"
-import { MATERIALS, COLORS, QUALITIES } from "@/types/order"
 import { isGcodeFile } from "@/lib/gcode-parser"
 
 interface StepConfigureProps {
@@ -11,6 +10,9 @@ interface StepConfigureProps {
 export function StepConfigure({ wizard }: StepConfigureProps) {
     const { state, actions } = wizard
     const fileIsGcode = state.file ? isGcodeFile(state.file) : false
+    const materials = state.catalog?.materials ?? []
+    const qualities = state.catalog?.qualities ?? []
+    const selectedMaterial = materials.find((material) => material.id === state.selectedMaterial)
 
     return (
         <>
@@ -79,7 +81,7 @@ export function StepConfigure({ wizard }: StepConfigureProps) {
                     Material {fileIsGcode && <span className="text-violet-500 ml-2">(Confirm Selection)</span>}
                 </label>
                 <div className="grid grid-cols-4 gap-3">
-                    {MATERIALS.map((material) => (
+                    {materials.map((material) => (
                         <button
                             key={material.id}
                             onClick={() => actions.setSelectedMaterial(material.id)}
@@ -98,7 +100,32 @@ export function StepConfigure({ wizard }: StepConfigureProps) {
                         </button>
                     ))}
                 </div>
+                {!state.isLoadingCatalog && materials.length === 0 && (
+                    <p className="mt-3 text-sm font-semibold text-red-600">No active materials available.</p>
+                )}
             </div>
+
+            {/* Color Selection */}
+            {selectedMaterial?.colors && selectedMaterial.colors.length > 0 && (
+                <div className="bg-white rounded-xl border border-slate-200 p-6">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 block">Color</label>
+                    <div className="flex flex-wrap gap-3">
+                        {selectedMaterial.colors.map((color) => (
+                            <button
+                                key={color.id}
+                                onClick={() => actions.setSelectedColor(color.name)}
+                                className={`flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-bold transition-all ${state.selectedColor === color.name
+                                    ? "border-primary bg-primary/5 text-slate-900"
+                                    : "border-slate-200 text-slate-600 hover:border-slate-300"
+                                }`}
+                            >
+                                <span className="size-4 rounded-full border border-slate-200" style={{ backgroundColor: color.hex }} />
+                                {color.name}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Quality Selection */}
             <div className={`bg-white rounded-xl border border-slate-200 p-6 ${fileIsGcode ? 'opacity-50' : ''}`}>
@@ -106,7 +133,7 @@ export function StepConfigure({ wizard }: StepConfigureProps) {
                     Print Quality {fileIsGcode && <span className="text-violet-500 ml-2">(Embedded in G-code)</span>}
                 </label>
                 <div className="grid grid-cols-4 gap-3">
-                    {QUALITIES.map((quality) => (
+                    {qualities.map((quality) => (
                         <button
                             key={quality.id}
                             onClick={() => !fileIsGcode && actions.setSelectedQuality(quality.id)}
@@ -124,10 +151,13 @@ export function StepConfigure({ wizard }: StepConfigureProps) {
                                 </div>
                             )}
                             <p className={`font-bold ${fileIsGcode ? 'text-slate-400' : 'text-slate-900'}`}>{quality.name}</p>
-                            <p className="text-xs text-slate-500 mt-1">{quality.multiplier}x price</p>
+                            <p className="text-xs text-slate-500 mt-1">{quality.priceMultiplier}x price</p>
                         </button>
                     ))}
                 </div>
+                {!state.isLoadingCatalog && qualities.length === 0 && (
+                    <p className="mt-3 text-sm font-semibold text-red-600">No active print qualities available.</p>
+                )}
             </div>
 
             {/* Quantity */}
@@ -158,4 +188,3 @@ export function StepConfigure({ wizard }: StepConfigureProps) {
         </>
     )
 }
-

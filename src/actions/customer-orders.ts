@@ -3,6 +3,13 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { z } from "zod"
+
+const SubmitOrderReviewSchema = z.object({
+    orderId: z.string().trim().min(1),
+    rating: z.number().int().min(1).max(5),
+    comment: z.string().trim().max(1000).optional(),
+})
 
 export async function getCustomerActiveOrders() {
     const session = await auth()
@@ -230,5 +237,70 @@ export async function confirmOrderReceived(orderId: string): Promise<{ success: 
     } catch (error) {
         console.error("Failed to confirm order received:", error)
         return { success: false, error: "Gagal mengonfirmasi pesanan diterima" }
+    }
+}
+
+export async function submitOrderReview(input: {
+    orderId: string
+    rating: number
+    comment?: string
+}): Promise<{ success: boolean; error?: string }> {
+    const session = await auth()
+    if (!session?.user?.id) {
+        return { success: false, error: "Unauthorized" }
+    }
+
+    const parsed = SubmitOrderReviewSchema.safeParse(input)
+    if (!parsed.success) {
+        return { success: false, error: "Review tidak valid" }
+    }
+
+    const { orderId, rating, comment } = parsed.data
+
+    try {
+        const order = await prisma.order.findFirst({
+            where: {
+                id: orderId,
+                userId: session.user.id,
+            },
+            select: {
+                id: true,
+                status: true,
+                providerId: true,
+                printerId: true,
+                review: { select: { id: true } },
+            },
+        })
+
+        if (!order) {
+            return { success: false, error: "Order not found" }
+        }
+
+        if (order.status !== "COMPLETED") {
+            return { success: false, error: "Review hanya bisa diberikan setelah pesanan selesai" }
+        }
+
+        if (order.review) {
+            return { success: false, error: "Pesanan ini sudah direview" }
+        }
+
+        await prisma.orderReview.create({
+            data: {
+                orderId: order.id,
+                userId: session.user.id,
+                providerId: order.providerId,
+                printerId: order.printerId,
+                rating,
+                comment: comment || null,
+            },
+        })
+
+        revalidatePath("/dashboard")
+        revalidatePath("/dashboard/orders")
+
+        return { success: true }
+    } catch (error) {
+        console.error("Failed to submit order review:", error)
+        return { success: false, error: "Gagal menyimpan review" }
     }
 }

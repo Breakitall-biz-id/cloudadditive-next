@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status *)",
+      "Bash(node -p \"process.arch\")",
+      "Bash(node -p \"process.platform\")",
+      "Bash(file /Users/ftiuii/.nvm/versions/node/v20.19.6/bin/node /Users/ftiuii/.nvm/versions/node/v22.22.0/bin/node /opt/homebrew/bin/node 2>/dev/null; echo \"---\"; cat .nvmrc 2>/dev/null || echo \"no .nvmrc\")",
+      "Bash(mkdir -p /Users/ftiuii/Documents/Projects/cloud-print/cloudadditive-next/.vscode)",
+      "Bash(chmod +x /Users/ftiuii/Documents/Projects/cloud-print/cloudadditive-next/scripts/dev-arm64.sh)",
+      "Bash(chmod +x /private/tmp/claude-501/-Users-ftiuii-Documents-Projects-cloud-print-cloudadditive-next/72c3e649-485a-4173-8c91-56949a04e5c7/scratchpad/dev-arm64.sh)",
+      "Bash(xargs -I{} echo {})",
+      "Bash(node -e \"const fs=require\\('fs'\\); const p='node_modules/next/font/google/index.d.ts'; if\\(fs.existsSync\\(p\\)\\){const c=fs.readFileSync\\(p,'utf8'\\); console.log\\(c.includes\\('Geist'\\) ? 'Geist: FOUND' : 'Geist: NOT FOUND'\\); console.log\\(c.includes\\('Outfit'\\) ? 'Outfit: FOUND' : 'Outfit: NOT FOUND'\\); console.log\\(c.includes\\('Space_Grotesk'\\) ? 'Space_Grotesk: FOUND':'Space_Grotesk: NOT FOUND'\\);} else {console.log\\('file not found'\\)}\")",
+      "Bash(node -e \"console.log\\(require\\('next/package.json'\\).version\\)\")",
+      "Bash(node -e \"const d=require\\('./node_modules/next/dist/compiled/@next/font/dist/google/font-data.json'\\); const keys=Object.keys\\(d\\); console.log\\(keys.filter\\(k=>/geist|outfit|space grotesk|manrope|sora|jakarta|jetbrains/i.test\\(k\\)\\)\\);\")",
+      "Bash(lsof -ti:3000)",
+      "Bash(xargs -r kill -9)"
+    ]
+  }
+}

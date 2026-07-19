@@ -1,9 +1,24 @@
 import { prisma } from "@/lib/prisma";
 import { AdminPageHeader, DataCard, StatCard, StatusPill } from "@/components/admin/AdminShell";
+import { AdminButton, AdminFilterForm, AdminSearchInput, AdminSelect } from "@/components/admin/AdminControls";
+import { Card, CardContent } from "@/components/ui/card";
 import { formatAdminDateTime, getStatusTone, humanizeEnum } from "@/lib/admin-metrics";
 import type { Prisma } from "@prisma/client";
 
 type PageProps = { searchParams: Promise<{ query?: string; action?: string }> };
+const actionOptions = [
+  { value: "ALL", label: "All actions" },
+  { value: "PROVIDER_VERIFIED", label: "Provider Verified" },
+  { value: "PROVIDER_UNVERIFIED", label: "Provider Unverified" },
+  { value: "USER_ROLE_CHANGED", label: "User Role Changed" },
+  { value: "ORDER_STATUS_CHANGED", label: "Order Status Changed" },
+  { value: "ORDER_ASSIGNMENT_CHANGED", label: "Order Assignment Changed" },
+  { value: "PAYMENT_STATUS_CHANGED", label: "Payment Status Changed" },
+  { value: "PRINTER_UPDATED", label: "Printer Updated" },
+  { value: "MATERIAL_UPDATED", label: "Material Updated" },
+  { value: "PRINT_QUALITY_UPDATED", label: "Print Quality Updated" },
+  { value: "SYSTEM_SETTINGS_UPDATED", label: "System Settings Updated" },
+];
 
 export default async function AdminAuditLogsPage({ searchParams }: PageProps) {
   const params = await searchParams;
@@ -50,43 +65,33 @@ export default async function AdminAuditLogsPage({ searchParams }: PageProps) {
       </section>
 
       <DataCard title="Audit Trail">
-        <form className="mb-5 grid gap-3 md:grid-cols-[1fr_280px_auto]">
-          <input name="query" defaultValue={query} placeholder="Cari actor, entity, reason..." className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-teal-600" />
-          <select name="action" defaultValue={action} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-teal-600">
-            <option value="ALL">All actions</option>
-            <option value="PROVIDER_VERIFIED">Provider Verified</option>
-            <option value="PROVIDER_UNVERIFIED">Provider Unverified</option>
-            <option value="USER_ROLE_CHANGED">User Role Changed</option>
-            <option value="ORDER_STATUS_CHANGED">Order Status Changed</option>
-            <option value="ORDER_ASSIGNMENT_CHANGED">Order Assignment Changed</option>
-            <option value="PAYMENT_STATUS_CHANGED">Payment Status Changed</option>
-            <option value="PRINTER_UPDATED">Printer Updated</option>
-            <option value="MATERIAL_UPDATED">Material Updated</option>
-            <option value="PRINT_QUALITY_UPDATED">Print Quality Updated</option>
-            <option value="SYSTEM_SETTINGS_UPDATED">System Settings Updated</option>
-          </select>
-          <button className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white">Filter</button>
-        </form>
+        <AdminFilterForm className="md:grid-cols-[1fr_280px_auto]">
+          <AdminSearchInput name="query" defaultValue={query} placeholder="Cari actor, entity, reason..." />
+          <AdminSelect name="action" defaultValue={action} options={actionOptions} />
+          <AdminButton>Filter</AdminButton>
+        </AdminFilterForm>
 
         <div className="space-y-3">
           {logs.map((log) => (
-            <article key={log.id} className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <StatusPill className={getStatusTone(log.action)}>{humanizeEnum(log.action)}</StatusPill>
-                    <p className="text-sm font-black text-slate-950">{log.entityType}</p>
-                    <p className="text-xs font-semibold text-slate-500">{log.entityId}</p>
+            <Card key={log.id} className="gap-0 rounded-[0.85rem] border-[var(--admin-line)] bg-white py-0 shadow-[var(--admin-shadow-card)]">
+              <CardContent className="p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusPill className={getStatusTone(log.action)}>{humanizeEnum(log.action)}</StatusPill>
+                      <p className="text-sm font-semibold text-slate-950">{log.entityType}</p>
+                      <p className="text-xs font-semibold text-slate-500">{log.entityId}</p>
+                    </div>
+                    <p className="mt-2 text-sm font-semibold text-slate-700">{log.reason}</p>
+                    <p className="mt-1 text-xs text-slate-500">By {log.actor?.name ?? "Deleted admin"} • {log.actor?.email ?? "-"}</p>
                   </div>
-                  <p className="mt-2 text-sm font-semibold text-slate-700">{log.reason}</p>
-                  <p className="mt-1 text-xs text-slate-500">By {log.actor?.name ?? "Deleted admin"} • {log.actor?.email ?? "-"}</p>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-slate-400">{formatAdminDateTime(log.createdAt)}</p>
                 </div>
-                <p className="text-xs font-black uppercase tracking-widest text-slate-400">{formatAdminDateTime(log.createdAt)}</p>
-              </div>
-              {log.metadata ? (
-                <pre className="mt-3 max-h-40 overflow-auto rounded-2xl bg-slate-950 p-3 text-xs text-slate-100">{JSON.stringify(log.metadata, null, 2)}</pre>
-              ) : null}
-            </article>
+                {log.metadata ? (
+                  <pre className="mt-3 max-h-40 overflow-auto rounded-md bg-slate-950 p-3 text-xs text-slate-100">{JSON.stringify(log.metadata, null, 2)}</pre>
+                ) : null}
+              </CardContent>
+            </Card>
           ))}
           {logs.length === 0 && <p className="text-sm font-semibold text-slate-500">Belum ada audit log sesuai filter.</p>}
         </div>

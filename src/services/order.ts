@@ -16,9 +16,11 @@ export const OrderService = {
                 quality: true,
                 provider: {
                     select: {
+                        id: true,
                         businessName: true,
                     }
                 },
+                review: true,
             },
             orderBy: {
                 createdAt: 'desc',
@@ -46,6 +48,7 @@ export const OrderService = {
                 material: true,
                 quality: true,
                 provider: true, // Need provider details for active tracking
+                review: true,
                 statusHistory: {
                     orderBy: {
                         createdAt: 'desc'

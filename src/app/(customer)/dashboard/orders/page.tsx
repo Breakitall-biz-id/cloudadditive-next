@@ -35,11 +35,18 @@ export default async function OrdersPage() {
         createdAt: o.createdAt.toISOString(),
         totalPrice: Number(o.totalPrice),
         status: o.status,
+        dueDate: o.dueDate ? o.dueDate.toISOString() : null,
         stlFileName: o.stlFileName,
         quantity: o.quantity,
         colorName: o.colorName || null,
         thumbnailUrl: o.thumbnailUrl || null,
         materialName: o.material?.name || "Unknown",
+        providerName: o.provider?.businessName || null,
+        review: o.review ? {
+            rating: o.review.rating,
+            comment: o.review.comment,
+            createdAt: o.review.createdAt.toISOString(),
+        } : null,
     }))
 
     const serializedActiveOrder = activeOrder ? {
@@ -48,6 +55,7 @@ export default async function OrdersPage() {
         createdAt: activeOrder.createdAt.toISOString(),
         totalPrice: Number(activeOrder.totalPrice),
         status: activeOrder.status,
+        dueDate: activeOrder.dueDate ? activeOrder.dueDate.toISOString() : null,
         stlFileName: activeOrder.stlFileName,
         quantity: activeOrder.quantity,
         thumbnailUrl: activeOrder.thumbnailUrl,
@@ -61,6 +69,11 @@ export default async function OrdersPage() {
         courierCode: activeOrder.courierCode,
         trackingNumber: activeOrder.trackingNumber,
         shippedAt: activeOrder.shippedAt ? activeOrder.shippedAt.toISOString() : null,
+        review: activeOrder.review ? {
+            rating: activeOrder.review.rating,
+            comment: activeOrder.review.comment,
+            createdAt: activeOrder.review.createdAt.toISOString(),
+        } : null,
     } : null
 
     return (

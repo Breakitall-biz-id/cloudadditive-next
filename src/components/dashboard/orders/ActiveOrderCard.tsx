@@ -3,16 +3,17 @@
 import { useState, useTransition } from "react"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
-import { Check, MapPin } from "lucide-react"
-import { confirmOrderReceived } from "@/actions/customer-orders"
+import { Check, MapPin, Star } from "lucide-react"
+import { confirmOrderReceived, submitOrderReview } from "@/actions/customer-orders"
 
 interface ActiveOrderProps {
     order: {
         id: string
         orderNumber: string
         createdAt: string
-        totalPrice: any // Decimal
+        totalPrice: number
         status: string
+        dueDate: string | null
         thumbnailUrl: string | null
         stlFileName: string
         material: {
@@ -27,14 +28,20 @@ interface ActiveOrderProps {
         courierCode?: string | null
         trackingNumber?: string | null
         shippedAt?: string | null
+        review?: {
+            rating: number
+            comment: string | null
+            createdAt: string
+        } | null
     }
 }
 
 export function ActiveOrderCard({ order }: ActiveOrderProps) {
-    if (!order) return null;
-
     const [currentStatus, setCurrentStatus] = useState(order.status)
     const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null)
+    const [rating, setRating] = useState(order.review?.rating ?? 5)
+    const [comment, setComment] = useState(order.review?.comment ?? "")
+    const [savedReview, setSavedReview] = useState(order.review ?? null)
     const [isPending, startTransition] = useTransition()
 
     const formatStatus = (value: string) => value.replace(/_/g, " ")
@@ -43,6 +50,7 @@ export function ActiveOrderCard({ order }: ActiveOrderProps) {
         .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
 
     const canConfirmReceived = currentStatus === "SHIPPED" || currentStatus === "DELIVERED"
+    const canReview = currentStatus === "COMPLETED" && !savedReview
 
     const handleConfirmReceived = () => {
         if (!canConfirmReceived || isPending) return
@@ -58,6 +66,24 @@ export function ActiveOrderCard({ order }: ActiveOrderProps) {
             setFeedback({
                 type: "error",
                 message: result.error || "Gagal mengonfirmasi pesanan diterima.",
+            })
+        })
+    }
+
+    const handleSubmitReview = () => {
+        if (!canReview || isPending) return
+
+        setFeedback(null)
+        startTransition(async () => {
+            const result = await submitOrderReview({ orderId: order.id, rating, comment })
+            if (result.success) {
+                setSavedReview({ rating, comment: comment.trim() || null, createdAt: new Date().toISOString() })
+                setFeedback({ type: "success", message: "Review berhasil disimpan." })
+                return
+            }
+            setFeedback({
+                type: "error",
+                message: result.error || "Gagal menyimpan review.",
             })
         })
     }
@@ -90,6 +116,17 @@ export function ActiveOrderCard({ order }: ActiveOrderProps) {
                             {new Date(order.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                         </p>
                     </div>
+                    {order.dueDate && (
+                        <>
+                            <div className="h-8 w-px bg-slate-200"></div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Needed By</p>
+                                <p className="text-sm font-semibold text-slate-700">
+                                    {new Date(order.dueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                </p>
+                            </div>
+                        </>
+                    )}
                 </div>
                 <div className="flex items-center gap-4">
                     <div className="text-right">
@@ -205,6 +242,55 @@ export function ActiveOrderCard({ order }: ActiveOrderProps) {
                             >
                                 {isPending ? "Menyimpan..." : "Konfirmasi Diterima"}
                             </button>
+                        )}
+                        {(canReview || savedReview) && (
+                            <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Review Pesanan</p>
+                                {savedReview ? (
+                                    <div>
+                                        <div className="flex items-center gap-1 text-amber-500">
+                                            {Array.from({ length: 5 }).map((_, index) => (
+                                                <Star key={index} className={cn("h-4 w-4", index < savedReview.rating ? "fill-current" : "text-slate-300")} />
+                                            ))}
+                                        </div>
+                                        {savedReview.comment && <p className="mt-2 text-sm text-slate-700">{savedReview.comment}</p>}
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-1">
+                                            {Array.from({ length: 5 }).map((_, index) => {
+                                                const value = index + 1
+                                                return (
+                                                    <button
+                                                        key={value}
+                                                        type="button"
+                                                        onClick={() => setRating(value)}
+                                                        className="rounded-md p-1 text-amber-500 transition-colors hover:bg-amber-50"
+                                                        aria-label={`${value} stars`}
+                                                    >
+                                                        <Star className={cn("h-5 w-5", value <= rating ? "fill-current" : "text-slate-300")} />
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                        <textarea
+                                            rows={3}
+                                            value={comment}
+                                            onChange={(event) => setComment(event.target.value)}
+                                            className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/10"
+                                            placeholder="Bagikan pengalaman Anda..."
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleSubmitReview}
+                                            disabled={isPending}
+                                            className="w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-bold text-white transition-all hover:bg-primary disabled:cursor-not-allowed disabled:bg-slate-300"
+                                        >
+                                            {isPending ? "Menyimpan..." : "Submit Review"}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         )}
                         {feedback && (
                             <p className={cn(

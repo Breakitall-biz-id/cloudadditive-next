@@ -13,11 +13,18 @@ interface OrderItem {
     createdAt: string
     totalPrice: number
     status: OrderStatus
+    dueDate: string | null
     stlFileName: string
     quantity: number
     colorName: string | null
     thumbnailUrl: string | null
     materialName: string
+    providerName: string | null
+    review: {
+        rating: number
+        comment: string | null
+        createdAt: string
+    } | null
 }
 
 interface ActiveOrderItem {
@@ -26,6 +33,7 @@ interface ActiveOrderItem {
     createdAt: string
     totalPrice: number
     status: OrderStatus
+    dueDate: string | null
     stlFileName: string
     quantity: number
     thumbnailUrl: string | null
@@ -36,6 +44,11 @@ interface ActiveOrderItem {
     courierCode?: string | null
     trackingNumber?: string | null
     shippedAt?: string | null
+    review?: {
+        rating: number
+        comment: string | null
+        createdAt: string
+    } | null
 }
 
 interface OrdersClientProps {
@@ -113,14 +126,18 @@ export function OrdersClient({ orders, activeOrder }: OrdersClientProps) {
                 {filteredOrders.length > 0 ? (
                     filteredOrders.map((order) => (
                         <OrderCard
+                            databaseId={order.id}
                             key={order.id}
                             orderId={order.orderNumber}
                             date={new Date(order.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            dueDate={order.dueDate ? new Date(order.dueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : null}
                             total={new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(Number(order.totalPrice))}
                             status={order.status}
                             projectName={order.stlFileName || "Untitled Project"}
                             material={`${order.materialName}${order.colorName ? ` (${order.colorName})` : ''}`}
                             quantity={`${order.quantity} Unit${order.quantity > 1 ? 's' : ''}`}
+                            providerName={order.providerName}
+                            review={order.review}
                             projectImage={order.thumbnailUrl || "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?q=80&w=300"}
                         />
                     ))

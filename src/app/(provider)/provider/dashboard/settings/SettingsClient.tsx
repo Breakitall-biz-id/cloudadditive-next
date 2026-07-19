@@ -12,7 +12,6 @@ import {
     Loader2,
     MapPin,
     ShieldCheck,
-    Clock,
     FileText
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -75,6 +74,7 @@ interface SettingsData {
 
 interface SettingsClientProps {
     initialData: SettingsData
+    materialOptions: string[]
 }
 
 type TabKey = "business" | "capabilities" | "payouts"
@@ -92,19 +92,12 @@ const readOnlyInputClassName = "w-full h-12 px-4 rounded-xl border-slate-100 bg-
 
 // Constants
 const TECHNOLOGIES = ["FDM", "SLA", "SLS", "MJF", "DMLS", "PolyJet"]
-const MATERIALS = ["PLA", "PETG", "ABS", "ASA", "TPU", "Nylon", "PC", "Carbon Fiber", "Resin", "Metal"]
 const BANKS = [
     "BCA", "Bank Mandiri", "BNI", "BRI", "CIMB Niaga",
     "Bank Danamon", "Bank Permata", "Jenius", "OCBC NISP",
     "Bank Mega", "Maybank", "Bank BTN", "Bank Jago", "SeaBank", "Bank Raya"
 ]
-const PROVINCES = [
-    "Jawa Barat", "Jawa Tengah", "Jawa Timur", "DKI Jakarta", "D.I. Yogyakarta",
-    "Banten", "Bali", "Sumatera Utara", "Sumatera Barat", "Sumatera Selatan",
-    "Riau", "Kalimantan Timur", "Kalimantan Selatan", "Sulawesi Selatan", "Sulawesi Utara"
-]
-
-export function SettingsClient({ initialData }: SettingsClientProps) {
+export function SettingsClient({ initialData, materialOptions }: SettingsClientProps) {
     const [activeTab, setActiveTab] = useState<TabKey>("business")
     const [mapsLoaded, setMapsLoaded] = useState(false)
     const [saving, setSaving] = useState(false)
@@ -472,7 +465,7 @@ export function SettingsClient({ initialData }: SettingsClientProps) {
                                 <label className={labelClassName}>Supported Materials</label>
                                 <p className="text-sm text-slate-500 mb-4">Select all materials you can print with</p>
                                 <div className="flex flex-wrap gap-3">
-                                    {MATERIALS.map((material) => (
+                                    {materialOptions.map((material) => (
                                         <button
                                             key={material}
                                             onClick={() => toggleMaterial(material)}
@@ -490,6 +483,9 @@ export function SettingsClient({ initialData }: SettingsClientProps) {
                                         </button>
                                     ))}
                                 </div>
+                                {materialOptions.length === 0 && (
+                                    <p className="text-sm font-semibold text-red-600">No active materials are available in the admin catalog.</p>
+                                )}
                             </div>
                         </div>
 

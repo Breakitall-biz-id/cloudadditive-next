@@ -3,23 +3,23 @@
  */
 
 import type { PrinterCandidate } from "./types";
+import { isActiveQueueStatus, projectQueue } from "./projection";
 
-const QUEUE_STATUSES = ["IN_QUEUE", "PRINTING", "SLICING"];
+const LEGACY_FALLBACK_MINUTES = 60;
 
 /**
  * Calculate total queue time for a printer in minutes
  * Includes estimated print time + preprocessing time for each queued order
  */
-export function calculateQueueTime(printer: PrinterCandidate): number {
-    const queuedOrders = printer.orders.filter((order) =>
-        QUEUE_STATUSES.includes(order.status)
-    );
-
-    return queuedOrders.reduce((total, order) => {
-        const printTime = order.estimatedPrintTime || 0;
-        const preprocessTime = printer.preprocessingTime || 10;
-        return total + printTime + preprocessTime;
-    }, 0);
+export function calculateQueueTime(
+    printer: PrinterCandidate,
+    fallbackMinutes = LEGACY_FALLBACK_MINUTES
+): number {
+    return projectQueue({
+        orders: printer.orders,
+        preprocessingTime: printer.preprocessingTime ?? 10,
+        fallbackMinutes,
+    }).waitMinutes;
 }
 
 /**
@@ -27,7 +27,7 @@ export function calculateQueueTime(printer: PrinterCandidate): number {
  */
 export function getQueuePosition(printer: PrinterCandidate): number {
     return (
-        printer.orders.filter((order) => QUEUE_STATUSES.includes(order.status))
+        printer.orders.filter((order) => isActiveQueueStatus(order.status))
             .length + 1
     );
 }

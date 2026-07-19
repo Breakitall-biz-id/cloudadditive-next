@@ -5,6 +5,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { resolveDownloadUrl } from "@/lib/r2-storage";
+import { loadMatchingConfig } from "@/lib/printer-matching/runtime-config";
+import { getPrinterStartBlockReason } from "@/lib/printer-state";
 
 interface OctoPrintPrinter {
     id: string;
@@ -250,6 +252,7 @@ export async function startOrderPrint(
                 id: true,
                 gcodeFileUrl: true,
                 stlFileName: true,
+                materialId: true,
             },
         }),
         prisma.printer.findUnique({
@@ -259,6 +262,10 @@ export async function startOrderPrint(
                 name: true,
                 octoprintUrl: true,
                 octoprintApiKey: true,
+                status: true,
+                isAcceptingOrders: true,
+                lastSeenAt: true,
+                currentMaterialId: true,
             },
         }),
     ]);
@@ -269,6 +276,19 @@ export async function startOrderPrint(
 
     if (!printer) {
         return { success: false, error: "Printer not found" };
+    }
+
+    const config = await loadMatchingConfig();
+    const startBlockReason = getPrinterStartBlockReason(
+        printer,
+        new Date(),
+        config.heartbeatTimeoutSeconds
+    );
+    if (startBlockReason) {
+        return { success: false, error: startBlockReason };
+    }
+    if (!printer.currentMaterialId || printer.currentMaterialId !== order.materialId) {
+        return { success: false, error: "Loaded material does not match the order" };
     }
 
     if (!printer.octoprintUrl || !printer.octoprintApiKey) {
@@ -316,7 +336,33 @@ export async function startOrderPrint(
         };
     }
 
-    // Start the print job
+    const latestPrinter = await prisma.printer.findUnique({
+        where: { id: printerId },
+        select: {
+            status: true,
+            isAcceptingOrders: true,
+            lastSeenAt: true,
+            currentMaterialId: true,
+        },
+    });
+    const latestBlockReason = latestPrinter
+        ? getPrinterStartBlockReason(
+            latestPrinter,
+            new Date(),
+            config.heartbeatTimeoutSeconds
+        )
+        : "Printer not found";
+    if (
+        latestBlockReason ||
+        latestPrinter?.currentMaterialId !== order.materialId
+    ) {
+        return {
+            success: false,
+            error: latestBlockReason || "Loaded material changed before print start",
+        };
+    }
+
+    // Start the print job only after the immediate state recheck.
     const startResult = await startPrintJob(
         octoprintPrinter,
         uploadResult.filename || gcodeFilename

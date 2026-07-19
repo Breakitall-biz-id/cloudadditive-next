@@ -13,6 +13,8 @@ import {
     processQueueForPrinter,
 } from "@/lib/printer-matching";
 import type { OrderStatus } from "@prisma/client";
+import { loadMatchingConfig } from "@/lib/printer-matching/runtime-config";
+import { getPrinterStartBlockReason, resolveRequestedReadiness } from "@/lib/printer-state";
 
 // ====================== HELPER FUNCTIONS ======================
 
@@ -271,17 +273,30 @@ export async function updatePrinterReadiness(
         // Verify printer belongs to provider
         const printer = await prisma.printer.findFirst({
             where: { id: printerId, providerId: provider.id },
-            select: { id: true },
+            select: {
+                id: true,
+                status: true,
+                lastSeenAt: true,
+                isAcceptingOrders: true,
+            },
         });
 
         if (!printer) {
             return { success: false, error: "Printer not found" };
         }
 
+        const config = await loadMatchingConfig();
+        const isAcceptingOrders = resolveRequestedReadiness(
+            data.isAcceptingOrders,
+            printer,
+            new Date(),
+            config.heartbeatTimeoutSeconds
+        );
+
         await prisma.printer.update({
             where: { id: printerId },
             data: {
-                isAcceptingOrders: data.isAcceptingOrders,
+                isAcceptingOrders,
                 currentMaterialId: data.currentMaterialId,
                 preprocessingTime: data.preprocessingTime,
             },
@@ -289,7 +304,7 @@ export async function updatePrinterReadiness(
 
         // If printer is now accepting orders, process the queue
         let queueProcessed = 0;
-        if (data.isAcceptingOrders) {
+        if (!printer.isAcceptingOrders && isAcceptingOrders) {
             const result = await processQueueForPrinter(printerId);
             queueProcessed = result.started;
         }
@@ -573,21 +588,14 @@ export async function startNextQueuedPrint(printerId: string): Promise<{ success
             return { success: false, error: "Printer not found" };
         }
 
-        if (!printer.isAcceptingOrders) {
-            return { success: false, error: "Printer is not accepting orders" };
-        }
-
-        if (["OFFLINE", "ERROR", "MAINTENANCE"].includes(printer.status)) {
-            return { success: false, error: `Printer status is ${printer.status.toLowerCase()}` };
-        }
-
-        if (["PRINTING", "PAUSED"].includes(printer.status)) {
-            return { success: false, error: "Printer is busy" };
-        }
-
-        const OFFLINE_THRESHOLD_MS = 2 * 60 * 1000;
-        if (printer.lastSeenAt && Date.now() - printer.lastSeenAt.getTime() > OFFLINE_THRESHOLD_MS) {
-            return { success: false, error: "Printer is offline (stale)" };
+        const config = await loadMatchingConfig();
+        const startBlockReason = getPrinterStartBlockReason(
+            printer,
+            new Date(),
+            config.heartbeatTimeoutSeconds
+        );
+        if (startBlockReason) {
+            return { success: false, error: startBlockReason };
         }
 
         const nextOrder = await prisma.order.findFirst({
@@ -857,8 +865,16 @@ export async function startPrintViaPlugin(orderId: string): Promise<{
                 stlFileName: true,
                 printerId: true,
                 printer: {
-                    select: { id: true, name: true },
+                    select: {
+                        id: true,
+                        name: true,
+                        status: true,
+                        isAcceptingOrders: true,
+                        lastSeenAt: true,
+                        currentMaterialId: true,
+                    },
                 },
+                materialId: true,
             },
         });
 
@@ -872,6 +888,26 @@ export async function startPrintViaPlugin(orderId: string): Promise<{
 
         if (!order.gcodeFileUrl) {
             return { success: false, error: "Order has no G-code file. Please slice the model first." };
+        }
+
+        if (!order.printer) {
+            return { success: false, error: "Printer not found" };
+        }
+
+        const config = await loadMatchingConfig();
+        const startBlockReason = getPrinterStartBlockReason(
+            order.printer,
+            new Date(),
+            config.heartbeatTimeoutSeconds
+        );
+        if (startBlockReason) {
+            return { success: false, error: startBlockReason };
+        }
+        if (
+            !order.printer.currentMaterialId ||
+            order.printer.currentMaterialId !== order.materialId
+        ) {
+            return { success: false, error: "Loaded material does not match the order" };
         }
 
         // Generate filename

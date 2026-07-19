@@ -7,7 +7,8 @@ export default async function ProviderSettingsPage() {
     const session = await auth()
     if (!session?.user?.id) return redirect("/login")
 
-    const provider = await prisma.provider.findUnique({
+    const [provider, materials] = await Promise.all([
+        prisma.provider.findUnique({
         where: { userId: session.user.id },
         select: {
             id: true,
@@ -29,7 +30,13 @@ export default async function ProviderSettingsPage() {
             isVerified: true,
             logoUrl: true,
         }
-    })
+        }),
+        prisma.material.findMany({
+            where: { isActive: true },
+            orderBy: { name: "asc" },
+            select: { name: true },
+        }),
+    ])
 
     if (!provider) return redirect("/provider/register")
 
@@ -53,5 +60,5 @@ export default async function ProviderSettingsPage() {
         logoUrl: provider.logoUrl || "",
     }
 
-    return <SettingsClient initialData={initialData} />
+    return <SettingsClient initialData={initialData} materialOptions={materials.map((material) => material.name)} />
 }

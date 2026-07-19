@@ -6,6 +6,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { handlePrinterJobEvent } from "@/lib/printer-order-events";
+import { buildPrinterHeartbeatUpdate } from "@/lib/printer-state";
 
 interface PrinterEventPayload {
     printerId: string;
@@ -179,11 +180,17 @@ async function handlePrinterError(printerId: string, payload?: PrinterEventPaylo
  * Update printer status in database
  */
 async function updatePrinterStatus(printerId: string, status: "ONLINE" | "OFFLINE" | "ERROR") {
+    const printer = await prisma.printer.findUnique({
+        where: { id: printerId },
+        select: { isAcceptingOrders: true },
+    });
+
+    if (!printer) {
+        return;
+    }
+
     await prisma.printer.update({
         where: { id: printerId },
-        data: {
-            status,
-            lastSeenAt: new Date(),
-        },
+        data: buildPrinterHeartbeatUpdate(status, printer.isAcceptingOrders),
     });
 }

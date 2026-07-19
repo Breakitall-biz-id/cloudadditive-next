@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { AdminPageHeader, DataCard, StatCard, StatusPill } from "@/components/admin/AdminShell";
+import { AdminButton, AdminFilterForm, AdminInput, AdminSearchInput, AdminSelect } from "@/components/admin/AdminControls";
+import { Card, CardContent } from "@/components/ui/card";
 import { formatAdminDateTime, getPrinterHealthLabel, humanizeEnum } from "@/lib/admin-metrics";
 import type { Prisma } from "@prisma/client";
 import { adminUpdatePrinterState } from "@/actions/admin";
@@ -13,6 +15,15 @@ function healthTone(health: string) {
   if (["Error", "Offline"].includes(health)) return "border-rose-200 bg-rose-50 text-rose-700";
   return "border-amber-200 bg-amber-50 text-amber-700";
 }
+
+const printerStatusOptions = [
+  { value: "ONLINE", label: "Online" },
+  { value: "OFFLINE", label: "Offline" },
+  { value: "PRINTING", label: "Printing" },
+  { value: "PAUSED", label: "Paused" },
+  { value: "MAINTENANCE", label: "Maintenance" },
+  { value: "ERROR", label: "Error" },
+];
 
 export default async function AdminPrintersPage({ searchParams }: PageProps) {
   const params = await searchParams;
@@ -65,68 +76,60 @@ export default async function AdminPrintersPage({ searchParams }: PageProps) {
       </section>
 
       <DataCard title="Fleet Monitor">
-        <form className="mb-5 grid gap-3 md:grid-cols-[1fr_220px_auto]">
-          <input name="query" defaultValue={query} placeholder="Cari printer, model, provider..." className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-teal-600" />
-          <select name="status" defaultValue={status} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-teal-600">
-            <option value="ALL">All status</option>
-            <option value="ONLINE">Online</option>
-            <option value="PRINTING">Printing</option>
-            <option value="PAUSED">Paused</option>
-            <option value="MAINTENANCE">Maintenance</option>
-            <option value="ERROR">Error</option>
-            <option value="OFFLINE">Offline</option>
-          </select>
-          <button className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white">Filter</button>
-        </form>
+        <AdminFilterForm>
+          <AdminSearchInput name="query" defaultValue={query} placeholder="Cari printer, model, provider..." />
+          <AdminSelect name="status" defaultValue={status} options={[{ value: "ALL", label: "All status" }, ...printerStatusOptions]} />
+          <AdminButton>Filter</AdminButton>
+        </AdminFilterForm>
 
         <div className="grid gap-4 xl:grid-cols-2">
           {printers.map((printer) => {
             const health = getPrinterHealthLabel(printer.status, printer.lastSeenAt);
             const queueMinutes = printer.orders.reduce((sum, order) => sum + (order.estimatedPrintTime ?? 0), 0);
             return (
-              <article key={printer.id} className="rounded-3xl border border-slate-200 p-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-lg font-black text-slate-950">{printer.name}</p>
-                    <p className="mt-1 text-sm text-slate-500">{printer.model ?? "Unknown model"} • {humanizeEnum(printer.technology)}</p>
+              <Card key={printer.id} className="gap-0 rounded-[0.85rem] border-[var(--admin-line)] bg-white py-0 shadow-[var(--admin-shadow-card)]">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-lg font-semibold text-slate-950">{printer.name}</p>
+                      <p className="mt-1 text-sm text-slate-500">{printer.model ?? "Unknown model"} • {humanizeEnum(printer.technology)}</p>
+                    </div>
+                    <StatusPill className={healthTone(health)}>{health}</StatusPill>
                   </div>
-                  <StatusPill className={healthTone(health)}>{health}</StatusPill>
-                </div>
 
-                <div className="mt-4 rounded-2xl bg-slate-50 p-4">
-                  <p className="text-sm font-black text-slate-800">{printer.provider.businessName}</p>
-                  <p className="text-xs font-semibold text-slate-500">{printer.provider.city} • {printer.provider.isVerified ? "Verified provider" : "Provider pending"}</p>
-                </div>
+                  <div className="mt-4 rounded-md bg-[#f2f4f1] p-4">
+                    <p className="text-sm font-semibold text-slate-800">{printer.provider.businessName}</p>
+                    <p className="text-xs font-semibold text-slate-500">{printer.provider.city} • {printer.provider.isVerified ? "Verified provider" : "Provider pending"}</p>
+                  </div>
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  <div><p className="text-xs font-black uppercase tracking-widest text-slate-400">Readiness</p><p className="font-black text-slate-900">{printer.isAcceptingOrders ? "Accepting" : "Paused"}</p></div>
-                  <div><p className="text-xs font-black uppercase tracking-widest text-slate-400">Material</p><p className="font-black text-slate-900">{printer.currentMaterial?.name ?? "Not loaded"}</p></div>
-                  <div><p className="text-xs font-black uppercase tracking-widest text-slate-400">Queue</p><p className="font-black text-slate-900">{printer.orders.length} jobs / {queueMinutes} min</p></div>
-                </div>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <div><p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Readiness</p><p className="font-semibold text-slate-900">{printer.isAcceptingOrders ? "Accepting" : "Paused"}</p></div>
+                    <div><p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Material</p><p className="font-semibold text-slate-900">{printer.currentMaterial?.name ?? "Not loaded"}</p></div>
+                    <div><p className="text-xs font-semibold uppercase tracking-widest text-slate-400">Queue</p><p className="font-semibold text-slate-900">{printer.orders.length} jobs / {queueMinutes} min</p></div>
+                  </div>
 
-                <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold text-slate-500">
-                  <span className="rounded-full bg-slate-100 px-3 py-1">{printer.buildWidth}×{printer.buildDepth}×{printer.buildHeight} mm</span>
-                  <span className="rounded-full bg-slate-100 px-3 py-1">Last seen {formatAdminDateTime(printer.lastSeenAt)}</span>
-                </div>
+                  <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
+                    <span className="rounded-md bg-[#f2f4f1] px-3 py-1">{printer.buildWidth}×{printer.buildDepth}×{printer.buildHeight} mm</span>
+                    <span className="rounded-md bg-[#f2f4f1] px-3 py-1">Last seen {formatAdminDateTime(printer.lastSeenAt)}</span>
+                  </div>
 
-                <form key={`${printer.id}-${printer.status}-${printer.isAcceptingOrders}`} action={adminUpdatePrinterState} className="mt-5 grid gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-3 sm:grid-cols-[1fr_1fr]">
-                  <input type="hidden" name="printerId" value={printer.id} />
-                  <select name="status" defaultValue={printer.status} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold outline-none focus:border-teal-600">
-                    <option value="ONLINE">Online</option>
-                    <option value="OFFLINE">Offline</option>
-                    <option value="PRINTING">Printing</option>
-                    <option value="PAUSED">Paused</option>
-                    <option value="MAINTENANCE">Maintenance</option>
-                    <option value="ERROR">Error</option>
-                  </select>
-                  <select name="isAcceptingOrders" defaultValue={printer.isAcceptingOrders ? "true" : "false"} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold outline-none focus:border-teal-600">
-                    <option value="true">Accepting orders</option>
-                    <option value="false">Not accepting</option>
-                  </select>
-                  <input name="reason" minLength={5} placeholder="Reason optional" className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold outline-none focus:border-teal-600 sm:col-span-2" />
-                  <button className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white sm:col-span-2">Update Printer</button>
-                </form>
-              </article>
+                  <form key={`${printer.id}-${printer.status}-${printer.isAcceptingOrders}`} action={adminUpdatePrinterState} className="mt-5 grid gap-2 rounded-[0.75rem] border border-[var(--admin-line)] bg-[#f8f9fb] p-3 sm:grid-cols-[1fr_1fr]">
+                    <input type="hidden" name="printerId" value={printer.id} />
+                    <AdminSelect name="status" defaultValue={printer.status} options={printerStatusOptions} triggerClassName="h-8 text-xs" />
+                    <AdminSelect
+                      name="isAcceptingOrders"
+                      defaultValue={printer.isAcceptingOrders ? "true" : "false"}
+                      options={[
+                        { value: "true", label: "Accepting orders" },
+                        { value: "false", label: "Not accepting" },
+                      ]}
+                      triggerClassName="h-8 text-xs"
+                    />
+                    <AdminInput name="reason" minLength={5} placeholder="Reason optional" className="h-8 text-xs sm:col-span-2" />
+                    <AdminButton className="h-8 bg-[#17201d] text-xs text-white hover:bg-[#075e57] sm:col-span-2">Update Printer</AdminButton>
+                  </form>
+                </CardContent>
+              </Card>
             );
           })}
           {printers.length === 0 && <p className="text-sm font-semibold text-slate-500">Tidak ada printer sesuai filter.</p>}

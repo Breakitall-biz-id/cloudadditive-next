@@ -1,89 +1,164 @@
-/**
- * Printer scoring algorithm
- * Calculates a score for each printer based on distance, queue time, and material match
- */
-
+import { DEFAULT_MATCHING_CONFIG, type MatchingConfig } from "./config";
 import { haversineDistance } from "./distance";
-import { calculateQueueTime } from "./queue-time";
+import { projectQueue, type QueueProjection } from "./projection";
 import {
-    DEFAULT_WEIGHTS,
-    type PrinterCandidate,
-    type OrderForMatching,
-    type PrinterScore,
-    type MatchingWeights,
+  DEFAULT_WEIGHTS,
+  type MatchingWeights,
+  type OrderForMatching,
+  type PrinterCandidate,
+  type PrinterScore,
 } from "./types";
 
-/**
- * Calculate score for a single printer
- * Higher score = better match
- */
-export function calculatePrinterScore(
-    printer: PrinterCandidate,
-    order: OrderForMatching,
-    weights: MatchingWeights = DEFAULT_WEIGHTS
-): PrinterScore {
-    // 1. Distance Score (0-100, higher is closer)
-    let distanceKm = 0;
-    let distanceScore = 100; // Default if no coordinates
+export type ScoreEligiblePrinterInput = {
+  printer: Pick<PrinterCandidate, "id" | "providerId" | "name" | "currentMaterialId">;
+  order: Pick<OrderForMatching, "materialId">;
+  config: Readonly<MatchingConfig>;
+  projection: QueueProjection;
+  distanceKm: number;
+};
 
-    if (
-        printer.provider.latitude &&
-        printer.provider.longitude &&
-        order.shippingLat &&
-        order.shippingLng
-    ) {
-        distanceKm = haversineDistance(
-            order.shippingLat,
-            order.shippingLng,
-            printer.provider.latitude,
-            printer.provider.longitude
-        );
-        // 1km = -1 point, max 100km penalty
-        distanceScore = Math.max(0, 100 - distanceKm);
-    }
+function clampScore(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
 
-    // 2. Queue Time Score (0-100, higher is faster)
-    const queueTimeMinutes = calculateQueueTime(printer);
-    const queueTimeHours = queueTimeMinutes / 60;
-    // 1 hour = -20 points, so 5 hours = 0 points
-    const queueTimeScore = Math.max(0, 100 - queueTimeHours * 20);
+  return Math.min(100, Math.max(0, value));
+}
 
-    // 3. Material Match Score (0 or 50, bonus for immediate printing)
-    const materialMatch = printer.currentMaterialId === order.materialId;
-    const materialMatchScore = materialMatch ? 50 : 0;
+function normalizedInverseScore(value: number, maximum: number): number {
+  if (!Number.isFinite(maximum) || maximum <= 0) {
+    return 0;
+  }
 
-    // Calculate weighted total score
-    const score =
-        distanceScore * weights.distance +
-        queueTimeScore * weights.queueTime +
-        materialMatchScore * weights.materialMatch;
+  return clampScore((1 - value / maximum) * 100);
+}
 
-    // Can print immediately if material matches AND printer is ready
-    const canPrintImmediately =
-        materialMatch &&
-        printer.isAcceptingOrders &&
-        printer.status === "ONLINE";
+export function scoreEligiblePrinter({
+  printer,
+  order,
+  config,
+  projection,
+  distanceKm,
+}: ScoreEligiblePrinterInput): PrinterScore {
+  const distanceScore = normalizedInverseScore(distanceKm, config.maxDistanceKm);
+  const queueDurationScore = normalizedInverseScore(
+    projection.waitMinutes,
+    config.maxQueueMinutes
+  );
+  const queueCountScore = normalizedInverseScore(
+    projection.jobsAhead,
+    config.maxQueueJobs
+  );
+  const materialMatch = printer.currentMaterialId === order.materialId;
+  const loadedMaterialScore = materialMatch ? 100 : 0;
+  const score = clampScore(
+    distanceScore * config.distanceWeight +
+      queueDurationScore * config.queueDurationWeight +
+      queueCountScore * config.queueCountWeight +
+      loadedMaterialScore * config.loadedMaterialWeight
+  );
 
-    return {
-        printerId: printer.id,
-        providerId: printer.providerId,
-        printerName: printer.name,
-        score,
-        canPrintImmediately,
-        breakdown: {
-            distanceScore,
-            distanceKm,
-            queueTimeScore,
-            queueTimeMinutes,
-            materialMatchScore,
-            materialMatch,
-        },
-    };
+  return {
+    printerId: printer.id,
+    providerId: printer.providerId,
+    printerName: printer.name,
+    score,
+    canPrintImmediately: materialMatch && projection.jobsAhead === 0,
+    breakdown: {
+      distanceKm,
+      waitMinutes: projection.waitMinutes,
+      jobsAhead: projection.jobsAhead,
+      projectedMinutesAfter: projection.projectedMinutesAfter,
+      projectedJobsAfter: projection.projectedJobsAfter,
+      distanceScore,
+      queueDurationScore,
+      queueCountScore,
+      loadedMaterialScore,
+      materialMatch,
+      // Temporary aliases consumed by the current pre-check and order UI.
+      queueTimeScore: queueDurationScore,
+      queueTimeMinutes: projection.waitMinutes,
+      materialMatchScore: loadedMaterialScore,
+    },
+  };
+}
+
+function legacyConfig(weights: MatchingWeights): MatchingConfig {
+  return {
+    ...DEFAULT_MATCHING_CONFIG,
+    distanceWeight: weights.distance,
+    queueDurationWeight: weights.queueTime,
+    queueCountWeight: 0,
+    loadedMaterialWeight: weights.materialMatch,
+  };
 }
 
 /**
- * Sort printers by score (descending)
+ * Compatibility wrapper for callers that have not migrated to eligibility and projection yet.
  */
-export function sortByScore(scores: PrinterScore[]): PrinterScore[] {
-    return [...scores].sort((a, b) => b.score - a.score);
+export function calculatePrinterScore(
+  printer: PrinterCandidate,
+  order: OrderForMatching,
+  weights: MatchingWeights = DEFAULT_WEIGHTS
+): PrinterScore {
+  const providerLatitude = printer.provider.latitude;
+  const providerLongitude = printer.provider.longitude;
+  const distanceKm =
+    providerLatitude !== null &&
+    providerLongitude !== null &&
+    Number.isFinite(providerLatitude) &&
+    Number.isFinite(providerLongitude) &&
+    Number.isFinite(order.shippingLat) &&
+    Number.isFinite(order.shippingLng)
+      ? haversineDistance(
+          order.shippingLat,
+          order.shippingLng,
+          providerLatitude,
+          providerLongitude
+        )
+      : 0;
+  const projection = projectQueue({
+    orders: printer.orders,
+    preprocessingTime: printer.preprocessingTime ?? 10,
+    fallbackMinutes: 60,
+  });
+
+  const result = scoreEligiblePrinter({
+    printer,
+    order,
+    config: legacyConfig(weights),
+    projection,
+    distanceKm,
+  });
+
+  return {
+    ...result,
+    canPrintImmediately:
+      result.canPrintImmediately &&
+      printer.isAcceptingOrders &&
+      printer.status === "ONLINE",
+  };
+}
+
+/**
+ * Sort scores by score, then deterministic operational tie-breakers.
+ */
+export function sortByScore(scores: ReadonlyArray<PrinterScore>): PrinterScore[] {
+  return [...scores].sort((a, b) => {
+    const numericDifference =
+      b.score - a.score ||
+      a.breakdown.waitMinutes - b.breakdown.waitMinutes ||
+      a.breakdown.jobsAhead - b.breakdown.jobsAhead ||
+      a.breakdown.distanceKm - b.breakdown.distanceKm;
+
+    if (numericDifference !== 0) {
+      return numericDifference;
+    }
+
+    if (a.printerId === b.printerId) {
+      return 0;
+    }
+
+    return a.printerId < b.printerId ? -1 : 1;
+  });
 }

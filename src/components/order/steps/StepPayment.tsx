@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import type { UseOrderWizardReturn } from "@/hooks/useOrderWizard"
 import Script from "next/script"
 import { createOrderDirect } from "@/actions/create-order"
@@ -47,6 +47,13 @@ export function StepPayment({ wizard }: StepPaymentProps) {
                 throw new Error(uploadResult.error || "Failed to upload file")
             }
 
+            if (!state.selectedPrinter || !state.customerCoords) {
+                throw new Error("Printer atau lokasi pengiriman perlu dicek ulang")
+            }
+            if (!state.selectedMaterial || !state.selectedQuality) {
+                throw new Error("Material dan kualitas print harus dipilih dari catalog aktif")
+            }
+
             // 2. Create Order with the uploaded file URL
             const result = await createOrderDirect({
                 file: {
@@ -54,8 +61,8 @@ export function StepPayment({ wizard }: StepPaymentProps) {
                     name: state.file?.name || (fileType === 'gcode' ? "model.gcode" : "model.stl"),
                     size: state.file?.size || 0,
                 },
-                materialKey: state.selectedMaterial || 'pla',
-                qualityKey: state.selectedQuality || 'normal',
+                materialKey: state.selectedMaterial,
+                qualityKey: state.selectedQuality,
                 quantity: state.quantity,
                 printSettings: {
                     infill: "20%", // Hardcoded for now or from state
@@ -74,13 +81,22 @@ export function StepPayment({ wizard }: StepPaymentProps) {
                     grandTotal: computed.total,
                 },
                 // Pre-check printer assignment
-                printerId: state.selectedPrinter?.printerId,
-                providerId: state.selectedPrinter?.providerId,
-                customerCoords: state.customerCoords || undefined,
+                printerId: state.selectedPrinter.printerId,
+                providerId: state.selectedPrinter.providerId,
+                customerCoords: state.customerCoords,
+                dueDate: state.dueDate || undefined,
+                modelDimensions: state.modelDimensions ? {
+                    width: state.modelDimensions.width,
+                    height: state.modelDimensions.height,
+                    depth: state.modelDimensions.depth,
+                } : undefined,
                 gcodeData: state.slicedResult ? {
                     estimatedTime: state.slicedResult.printTimeMinutes * 60,
                     filamentLength: 0,
                     filamentWeight: state.slicedResult.filamentGrams,
+                    gcodeUrl: state.slicedResult.source === 'sliced'
+                        ? state.slicedResult.gcodeUrl
+                        : undefined,
                 } : undefined,
             })
 

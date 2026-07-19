@@ -33,6 +33,7 @@ model User {
   sessions        Session[]
   notificationSettings UserNotificationSettings?
   auditLogs       AuditLog[]
+  reviews         OrderReview[]
   
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -172,6 +173,7 @@ model Provider {
   // Relations
   printers        Printer[]
   orders          Order[]
+  reviews         OrderReview[]
   
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -389,6 +391,7 @@ model Order {
   courierCode     String?
   courierService  String?
   trackingNumber  String?
+  dueDate         DateTime?
   
   // Status
   status          OrderStatus @default(PENDING_PAYMENT)
@@ -403,6 +406,7 @@ model Order {
   // Relations
   payment         Payment?
   statusHistory   OrderStatusHistory[]
+  review          OrderReview?
   
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
@@ -411,7 +415,29 @@ model Order {
   @@index([providerId])
   @@index([printerId])
   @@index([status])
+  @@index([dueDate])
   @@index([orderNumber])
+}
+
+model OrderReview {
+  id          String   @id @default(cuid())
+  orderId     String   @unique
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  providerId  String?
+  provider    Provider? @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  printerId   String?
+
+  rating      Int
+  comment     String?  @db.Text
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([providerId])
+  @@index([rating])
 }
 
 enum OrderStatus {
@@ -530,6 +556,27 @@ model SystemSettings {
   
   // Default infill percentage for estimates
   defaultInfillPercentage Float    @default(0.20)  // 20% infill
+
+  // Printer matching weights (stored as fractions)
+  matchingAlgorithmMode          String @default("WEIGHTED_SCORE")
+  matchingDistanceWeight          Float @default(0.25)
+  matchingQueueDurationWeight     Float @default(0.35)
+  matchingQueueCountWeight        Float @default(0.25)
+  matchingLoadedMaterialWeight    Float @default(0.15)
+
+  // Printer matching eligibility limits
+  matchingHeartbeatTimeoutSeconds Int   @default(120)
+  matchingMaxDistanceKm           Float @default(100)
+  matchingMaxQueueMinutes         Int   @default(1440)
+  matchingMaxQueueJobs            Int   @default(20)
+
+  // NSGA-II tuning for admin simulation/routing experiments
+  matchingNsga2PopulationSize     Int    @default(48)
+  matchingNsga2Generations        Int    @default(60)
+  matchingNsga2MutationRate       Float  @default(0.12)
+  matchingNsga2CrossoverRate      Float  @default(0.9)
+  matchingNsga2Seed               Int    @default(42)
+  matchingNsga2DecisionPolicy     String @default("BALANCED")
   
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt

@@ -4,115 +4,57 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { calculatePrinterScore, sortByScore } from "./scoring";
 import { startOrderPrint } from "@/lib/octoprint";
-import type {
-    PrinterCandidate,
-    OrderForMatching,
-    PrinterScore,
-    MatchingWeights,
-} from "./types";
+import { printerMatchingService } from "./service";
+import { loadMatchingConfig } from "./runtime-config";
+import { getPrinterStartBlockReason } from "@/lib/printer-state";
+import type { PrinterScore } from "./types";
 export { DEFAULT_WEIGHTS } from "./types";
 export type { PrinterScore, MatchingWeights } from "./types";
+
+export type QueueProcessingPrinter = {
+    id: string;
+    status: string;
+    isAcceptingOrders: boolean;
+    lastSeenAt: Date | string | null;
+    currentMaterialId: string | null;
+};
+
+export type QueueProcessingDependencies = {
+    getPrinter(printerId: string): Promise<QueueProcessingPrinter | null>;
+    findNextOrder(
+        printerId: string,
+        materialId: string
+    ): Promise<{ id: string; materialId: string } | null>;
+    startOrder(
+        orderId: string,
+        printerId: string
+    ): Promise<{ success: boolean; error?: string }>;
+};
+
+type QueueProcessingOptions = {
+    now?: () => Date;
+    heartbeatTimeoutSeconds?: number;
+};
 
 /**
  * Find the best printer for an order
  * Returns the top-scoring printer or null if none available
  */
-export async function findBestPrinter(
-    orderId: string,
-    weights?: MatchingWeights
-): Promise<PrinterScore | null> {
-    // 1. Fetch order details
-    const order = await prisma.order.findUnique({
-        where: { id: orderId },
-        select: {
-            id: true,
-            materialId: true,
-            modelWidth: true,
-            modelHeight: true,
-            modelDepth: true,
-            shippingLat: true,
-            shippingLng: true,
-            estimatedPrintTime: true,
-        },
-    });
+export async function findBestPrinter(orderId: string): Promise<PrinterScore | null> {
+    const result = await printerMatchingService.findByOrderId(orderId);
 
-    if (!order) {
-        console.error(`[PrinterMatching] Order not found: ${orderId}`);
+    if (!result.success) {
+        console.warn(`[PrinterMatching] ${result.error} for order ${orderId}`);
         return null;
     }
-
-    const printers = await prisma.printer.findMany({
-        where: {
-            materials: {
-                some: { materialId: order.materialId },
-            },
-            ...(order.modelWidth && { buildWidth: { gte: order.modelWidth } }),
-            ...(order.modelDepth && { buildDepth: { gte: order.modelDepth } }),
-            ...(order.modelHeight && { buildHeight: { gte: order.modelHeight } }),
-        },
-        select: {
-            id: true,
-            providerId: true,
-            name: true,
-            buildWidth: true,
-            buildDepth: true,
-            buildHeight: true,
-            currentMaterialId: true,
-            isAcceptingOrders: true,
-            preprocessingTime: true,
-            status: true,
-            provider: {
-                select: {
-                    latitude: true,
-                    longitude: true,
-                    city: true,
-                },
-            },
-            orders: {
-                where: {
-                    status: { in: ["IN_QUEUE", "PRINTING", "SLICING"] },
-                },
-                select: {
-                    id: true,
-                    status: true,
-                    estimatedPrintTime: true,
-                },
-            },
-        },
-    });
-
-    if (printers.length === 0) {
-        console.warn(`[PrinterMatching] No compatible printers for order ${orderId}`);
-        return null;
-    }
-
-    // 3. Score each printer
-    const orderForMatching: OrderForMatching = {
-        id: order.id,
-        materialId: order.materialId,
-        modelWidth: order.modelWidth,
-        modelHeight: order.modelHeight,
-        modelDepth: order.modelDepth,
-        shippingLat: order.shippingLat,
-        shippingLng: order.shippingLng,
-        estimatedPrintTime: order.estimatedPrintTime,
-    };
-
-    const scores = printers.map((printer) =>
-        calculatePrinterScore(printer as PrinterCandidate, orderForMatching, weights)
-    );
-
-    // 4. Sort by score and return best match
-    const sorted = sortByScore(scores);
 
     console.log(
-        `[PrinterMatching] Scored ${sorted.length} printers for order ${orderId}:`,
-        sorted.map((s) => `${s.printerName}: ${s.score.toFixed(1)}`)
+        `[PrinterMatching] Selected ${result.bestPrinter.printerName} for order ${orderId} ` +
+        `from ${result.availablePrinters} eligible printers (${result.bestPrinter.score.toFixed(1)})`
     );
 
-    return sorted[0] || null;
+    return result.bestPrinter;
 }
 
 /**
@@ -184,51 +126,81 @@ export async function processQueueForPrinter(printerId: string): Promise<{
     processed: number;
     started: number;
 }> {
-    const printer = await prisma.printer.findUnique({
-        where: { id: printerId },
-        select: {
-            id: true,
-            currentMaterialId: true,
-            isAcceptingOrders: true,
-            status: true,
-        },
-    });
+    const config = await loadMatchingConfig();
 
-    if (!printer || !printer.isAcceptingOrders) {
+    return processQueueForPrinterWithDependencies(
+        printerId,
+        {
+            getPrinter: (id) => prisma.printer.findUnique({
+                where: { id },
+                select: {
+                    id: true,
+                    currentMaterialId: true,
+                    isAcceptingOrders: true,
+                    status: true,
+                    lastSeenAt: true,
+                },
+            }),
+            findNextOrder: (id, materialId) => prisma.order.findFirst({
+                where: {
+                    printerId: id,
+                    status: "IN_QUEUE",
+                    materialId,
+                },
+                orderBy: [{ queuePosition: "asc" }, { createdAt: "asc" }],
+                select: { id: true, materialId: true },
+            }),
+            startOrder: startOrderPrint,
+        },
+        { heartbeatTimeoutSeconds: config.heartbeatTimeoutSeconds }
+    );
+}
+
+export async function processQueueForPrinterWithDependencies(
+    printerId: string,
+    dependencies: QueueProcessingDependencies,
+    options: QueueProcessingOptions = {}
+): Promise<{ processed: number; started: number }> {
+    const nowFactory = options.now ?? (() => new Date());
+    const timeoutSeconds = options.heartbeatTimeoutSeconds ?? 120;
+    const printer = await dependencies.getPrinter(printerId);
+
+    if (
+        !printer ||
+        getPrinterStartBlockReason(printer, nowFactory(), timeoutSeconds) ||
+        !printer.currentMaterialId
+    ) {
         return { processed: 0, started: 0 };
     }
 
-    // Find queued orders for this printer that match current material
-    const queuedOrders = await prisma.order.findMany({
-        where: {
-            printerId: printerId,
-            status: "IN_QUEUE",
-            materialId: printer.currentMaterialId || undefined,
-        },
-        orderBy: { createdAt: "asc" },
-        take: 1, // Process one at a time
-    });
-
-    let started = 0;
-
-    for (const order of queuedOrders) {
-        if (printer.status === "ONLINE") {
-            // Try to start print via OctoPrint
-            const printResult = await startOrderPrint(order.id, printerId);
-
-            if (printResult.success) {
-                started++;
-                console.log(
-                    `[PrinterMatching] Started queued order ${order.id} on printer ${printerId}`
-                );
-            } else {
-                console.warn(
-                    `[PrinterMatching] Failed to start order ${order.id}: ${printResult.error}`
-                );
-            }
-            break; // Only start one at a time
-        }
+    const order = await dependencies.findNextOrder(
+        printerId,
+        printer.currentMaterialId
+    );
+    if (!order || order.materialId !== printer.currentMaterialId) {
+        return { processed: 0, started: 0 };
     }
 
-    return { processed: queuedOrders.length, started };
+    // State may change while the queue candidate is being loaded.
+    const latestPrinter = await dependencies.getPrinter(printerId);
+    if (
+        !latestPrinter ||
+        latestPrinter.currentMaterialId !== order.materialId ||
+        getPrinterStartBlockReason(latestPrinter, nowFactory(), timeoutSeconds)
+    ) {
+        return { processed: 1, started: 0 };
+    }
+
+    const printResult = await dependencies.startOrder(order.id, printerId);
+    if (!printResult.success) {
+        console.warn(
+            `[PrinterMatching] Failed to start order ${order.id}: ${printResult.error}`
+        );
+        return { processed: 1, started: 0 };
+    }
+
+    console.log(
+        `[PrinterMatching] Started queued order ${order.id} on printer ${printerId}`
+    );
+    return { processed: 1, started: 1 };
 }
