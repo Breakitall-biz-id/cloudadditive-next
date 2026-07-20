@@ -4,7 +4,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { startOrderPrint } from "@/lib/octoprint";
+import { startPrinterOrder } from "@/lib/printer-dispatch";
 import { printerMatchingService } from "./service";
 import { loadMatchingConfig } from "./runtime-config";
 import { getPrinterStartBlockReason } from "@/lib/printer-state";
@@ -97,7 +97,7 @@ export async function assignOrderToPrinter(orderId: string): Promise<{
         );
 
         // Try to start print via OctoPrint
-        const printResult = await startOrderPrint(orderId, bestPrinter.printerId);
+        const printResult = await startPrinterOrder(orderId, { changedBy: "SYSTEM", source: "matching" });
         if (!printResult.success) {
             console.warn(
                 `[PrinterMatching] Auto-start failed: ${printResult.error}. Order queued instead.`
@@ -150,7 +150,7 @@ export async function processQueueForPrinter(printerId: string): Promise<{
                 orderBy: [{ queuePosition: "asc" }, { createdAt: "asc" }],
                 select: { id: true, materialId: true },
             }),
-            startOrder: startOrderPrint,
+            startOrder: (orderId) => startPrinterOrder(orderId, { changedBy: "SYSTEM", source: "queue" }),
         },
         { heartbeatTimeoutSeconds: config.heartbeatTimeoutSeconds }
     );

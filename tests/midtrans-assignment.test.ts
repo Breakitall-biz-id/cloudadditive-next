@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   claimPaidOrderTransition,
   decidePaidAssignment,
+  mapPaymentToOrderStatus,
 } from "../src/lib/midtrans-webhook";
 import type { PrinterMatchingResult } from "../src/lib/printer-matching/service";
 
@@ -55,6 +56,10 @@ assert.deepEqual(
     reassigned: false,
   }
 );
+
+assert.equal(mapPaymentToOrderStatus("CONFIRMED", "PAID", true), "IN_QUEUE");
+assert.equal(mapPaymentToOrderStatus("CONFIRMED", "PAID", false), "CONFIRMED");
+assert.equal(mapPaymentToOrderStatus("CONFIRMED", "FAILED", true), null);
 
 async function main() {
   let claimed = false;

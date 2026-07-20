@@ -15,6 +15,8 @@ import {
 import type { OrderStatus } from "@prisma/client";
 import { loadMatchingConfig } from "@/lib/printer-matching/runtime-config";
 import { getPrinterStartBlockReason, resolveRequestedReadiness } from "@/lib/printer-state";
+import { startPrinterOrder } from "@/lib/printer-dispatch";
+import { triggerPrinterEvent } from "@/lib/pusher";
 
 // ====================== HELPER FUNCTIONS ======================
 
@@ -841,11 +843,9 @@ export async function uploadGcodeForOrder(
 
 // ====================== PRINT VIA PLUGIN ======================
 
-import { triggerPrinterEvent } from "@/lib/pusher";
-
 /**
- * Start print via OctoPrint plugin (via Pusher)
- * Sends job:start command with G-code URL to the plugin
+ * Start print via the connected printer plugin (Pusher).
+ * The plugin downloads the G-code URL and starts the job locally.
  */
 export async function startPrintViaPlugin(orderId: string): Promise<{
     success: boolean;
@@ -854,102 +854,18 @@ export async function startPrintViaPlugin(orderId: string): Promise<{
 }> {
     try {
         const provider = await getProviderFromSession();
-
-        // Get order with printer info
-        const order = await prisma.order.findFirst({
-            where: { id: orderId, providerId: provider.id },
-            select: {
-                id: true,
-                status: true,
-                gcodeFileUrl: true,
-                stlFileName: true,
-                printerId: true,
-                printer: {
-                    select: {
-                        id: true,
-                        name: true,
-                        status: true,
-                        isAcceptingOrders: true,
-                        lastSeenAt: true,
-                        currentMaterialId: true,
-                    },
-                },
-                materialId: true,
-            },
+        const result = await startPrinterOrder(orderId, {
+            providerId: provider.id,
+            changedBy: provider.id,
+            source: "plugin",
         });
 
-        if (!order) {
-            return { success: false, error: "Order not found" };
+        if (result.success) {
+            revalidatePath("/provider/dashboard/orders");
+            revalidatePath("/provider/dashboard/printers");
         }
 
-        if (!order.printerId) {
-            return { success: false, error: "Order not assigned to a printer" };
-        }
-
-        if (!order.gcodeFileUrl) {
-            return { success: false, error: "Order has no G-code file. Please slice the model first." };
-        }
-
-        if (!order.printer) {
-            return { success: false, error: "Printer not found" };
-        }
-
-        const config = await loadMatchingConfig();
-        const startBlockReason = getPrinterStartBlockReason(
-            order.printer,
-            new Date(),
-            config.heartbeatTimeoutSeconds
-        );
-        if (startBlockReason) {
-            return { success: false, error: startBlockReason };
-        }
-        if (
-            !order.printer.currentMaterialId ||
-            order.printer.currentMaterialId !== order.materialId
-        ) {
-            return { success: false, error: "Loaded material does not match the order" };
-        }
-
-        // Generate filename
-        const baseName = order.stlFileName?.replace(/\.stl$/i, "") || `order_${orderId}`;
-        const gcodeFilename = `${baseName}.gcode`;
-
-        // Send job:start command via Pusher to the OctoPrint plugin
-        // Plugin will download the G-code and start printing
-        await triggerPrinterEvent(order.printerId, "job:start", {
-            jobId: order.id,
-            gcodeUrl: order.gcodeFileUrl,
-            filename: gcodeFilename,
-        });
-
-        // Update order status to PRINTING
-        await prisma.$transaction([
-            prisma.order.update({
-                where: { id: orderId },
-                data: {
-                    status: "PRINTING",
-                    printStartedAt: new Date(),
-                },
-            }),
-            prisma.orderStatusHistory.create({
-                data: {
-                    orderId,
-                    status: "PRINTING",
-                    note: `Print started on ${order.printer?.name} via plugin`,
-                    changedBy: provider.id,
-                },
-            }),
-        ]);
-
-        console.log(`[startPrintViaPlugin] Sent job:start to printer ${order.printerId} for order ${orderId}`);
-
-        revalidatePath("/provider/dashboard/orders");
-        revalidatePath("/provider/dashboard/printers");
-
-        return {
-            success: true,
-            message: `Print started on ${order.printer?.name}`,
-        };
+        return result;
     } catch (error) {
         console.error("[startPrintViaPlugin] Error:", error);
         return {

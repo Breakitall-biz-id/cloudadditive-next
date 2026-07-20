@@ -22,6 +22,7 @@ type ProcessWebhookResult = {
 };
 
 const PAYMENT_PENDING_ORDER_STATUSES: OrderStatus[] = ["PENDING_PAYMENT", "PAYMENT_FAILED"];
+const PAYMENT_CONFIRMABLE_ORDER_STATUSES: OrderStatus[] = [...PAYMENT_PENDING_ORDER_STATUSES, "CONFIRMED"];
 
 export type PaidAssignmentDecision = {
     status: "IN_QUEUE" | "CONFIRMED";
@@ -87,9 +88,9 @@ function mapTransactionStatusToPaymentStatus(
     return "FAILED";
 }
 
-function mapPaymentToOrderStatus(currentStatus: OrderStatus, paymentStatus: PaymentStatus, hasPrinter: boolean): OrderStatus | null {
+export function mapPaymentToOrderStatus(currentStatus: OrderStatus, paymentStatus: PaymentStatus, hasPrinter: boolean): OrderStatus | null {
     if (paymentStatus === "PAID") {
-        if (!PAYMENT_PENDING_ORDER_STATUSES.includes(currentStatus)) {
+        if (!PAYMENT_CONFIRMABLE_ORDER_STATUSES.includes(currentStatus)) {
             return null;
         }
         return hasPrinter ? "IN_QUEUE" : "CONFIRMED";
@@ -220,7 +221,7 @@ export async function processMidtransWebhook(
                 const claim = await tx.order.updateMany({
                     where: {
                         id: existingOrder.id,
-                        status: { in: PAYMENT_PENDING_ORDER_STATUSES },
+                        status: { in: PAYMENT_CONFIRMABLE_ORDER_STATUSES },
                     },
                     data: {
                         status: paidAssignment.status,

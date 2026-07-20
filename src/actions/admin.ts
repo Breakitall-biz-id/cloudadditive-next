@@ -17,6 +17,8 @@ import {
 import type { AdminActionType, OrderStatus, PaymentStatus, PrinterStatus, Prisma, Role } from "@prisma/client";
 import { loadMatchingConfig } from "@/lib/printer-matching/runtime-config";
 import { resolvePrinterStateUpdate, validateAcceptingOrders } from "@/lib/printer-state";
+import { processQueueForPrinter } from "@/lib/printer-matching";
+import { decideAdminOrderStatusUpdate, shouldQueueAfterAdminAssignment } from "@/lib/admin-order-workflow";
 
 async function requireAdmin() {
   const session = await auth();
@@ -86,35 +88,80 @@ export async function adminUpdateOrderStatus(formData: FormData) {
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    select: { id: true, orderNumber: true, status: true },
+    select: {
+      id: true,
+      orderNumber: true,
+      status: true,
+      printerId: true,
+      totalPrice: true,
+      payment: { select: { id: true, status: true } },
+    },
   });
   if (!order) throw new Error("Order not found");
+
+  const decision = decideAdminOrderStatusUpdate({
+    currentStatus: order.status,
+    requestedStatus: nextStatus,
+    hasPrinter: Boolean(order.printerId),
+    paymentStatus: order.payment?.status,
+  });
 
   const requiresReason = ["PAYMENT_FAILED", "CANCELLED", "REFUNDED"].includes(nextStatus);
   const reason = requiresReason
     ? normalizeAuditReason(formData.get("reason"))
     : normalizeOptionalAuditReason(
         formData.get("reason"),
-        `Order status updated from ${order.status} to ${nextStatus} by admin`
+        `Order status updated from ${order.status} to ${decision.orderStatus} by admin`
       );
 
   await prisma.$transaction(async (tx) => {
+    const queuePosition = decision.orderStatus === "IN_QUEUE" && order.printerId
+      ? await tx.order.count({
+          where: {
+            printerId: order.printerId,
+            status: "IN_QUEUE",
+            id: { not: orderId },
+          },
+        }) + 1
+      : null;
+
     await tx.order.update({
       where: { id: orderId },
       data: {
-        status: nextStatus,
-        ...(nextStatus === "PRINTING" ? { printStartedAt: new Date() } : {}),
-        ...(nextStatus === "POST_PROCESSING" ? { printCompletedAt: new Date() } : {}),
-        ...(nextStatus === "SHIPPED" ? { shippedAt: new Date() } : {}),
-        ...(nextStatus === "DELIVERED" || nextStatus === "COMPLETED" ? { deliveredAt: new Date() } : {}),
+        status: decision.orderStatus,
+        queuePosition,
+        ...(decision.orderStatus === "PRINTING" ? { printStartedAt: new Date() } : {}),
+        ...(decision.orderStatus === "POST_PROCESSING" ? { printCompletedAt: new Date() } : {}),
+        ...(decision.orderStatus === "SHIPPED" ? { shippedAt: new Date() } : {}),
+        ...(decision.orderStatus === "DELIVERED" || decision.orderStatus === "COMPLETED" ? { deliveredAt: new Date() } : {}),
       },
     });
+
+    if (decision.markPaymentPaid) {
+      if (order.payment) {
+        await tx.payment.update({
+          where: { id: order.payment.id },
+          data: { status: "PAID", paidAt: new Date(), paymentMethod: "admin_override" },
+        });
+      } else {
+        await tx.payment.create({
+          data: {
+            orderId,
+            invoiceNumber: `INV-${order.orderNumber}`,
+            amount: order.totalPrice,
+            status: "PAID",
+            paidAt: new Date(),
+            paymentMethod: "admin_override",
+          },
+        });
+      }
+    }
 
     await tx.orderStatusHistory.create({
       data: {
         orderId,
-        status: nextStatus,
-        note: `Admin override: ${reason}`,
+        status: decision.orderStatus,
+        note: `Admin override: ${reason}${nextStatus !== decision.orderStatus ? ` (requested ${nextStatus})` : ""}`,
         changedBy: admin.id,
       },
     });
@@ -128,10 +175,20 @@ export async function adminUpdateOrderStatus(formData: FormData) {
       metadata: buildAuditMetadata({
         orderNumber: order.orderNumber,
         before: order.status,
-        after: nextStatus,
+        requested: nextStatus,
+        after: decision.orderStatus,
+        paymentReconciled: decision.markPaymentPaid,
       }),
     });
   });
+
+  if (decision.shouldProcessQueue && order.printerId) {
+    try {
+      await processQueueForPrinter(order.printerId);
+    } catch (error) {
+      console.warn(`[adminUpdateOrderStatus] Queue processing failed for ${order.printerId}:`, error);
+    }
+  }
 
   revalidatePath("/admin");
   revalidatePath("/admin/orders");
@@ -148,7 +205,14 @@ export async function adminAssignOrderPrinter(formData: FormData) {
 
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    select: { id: true, orderNumber: true, providerId: true, printerId: true, status: true },
+    select: {
+      id: true,
+      orderNumber: true,
+      providerId: true,
+      printerId: true,
+      status: true,
+      payment: { select: { status: true } },
+    },
   });
   if (!order) throw new Error("Order not found");
 
@@ -160,21 +224,39 @@ export async function adminAssignOrderPrinter(formData: FormData) {
     : null;
   if (printerId && !printer) throw new Error("Printer not found");
 
+  const shouldQueue = Boolean(printer && shouldQueueAfterAdminAssignment(order.status, order.payment?.status));
+  const nextStatus: OrderStatus = shouldQueue
+    ? "IN_QUEUE"
+    : !printer && order.status === "IN_QUEUE"
+      ? "CONFIRMED"
+      : order.status;
+
   await prisma.$transaction(async (tx) => {
+    const queuePosition = shouldQueue && printer
+      ? await tx.order.count({
+          where: {
+            printerId: printer.id,
+            status: "IN_QUEUE",
+            id: { not: orderId },
+          },
+        }) + 1
+      : null;
+
     await tx.order.update({
       where: { id: orderId },
       data: {
         printerId: printer?.id ?? null,
         providerId: printer?.providerId ?? null,
-        queuePosition: null,
+        status: nextStatus,
+        queuePosition,
       },
     });
 
     await tx.orderStatusHistory.create({
       data: {
         orderId,
-        status: order.status,
-        note: `Admin assignment override: ${reason}`,
+        status: nextStatus,
+        note: `Admin assignment override: ${reason}${nextStatus !== order.status ? ` (${order.status} → ${nextStatus})` : ""}`,
         changedBy: admin.id,
       },
     });
@@ -187,11 +269,19 @@ export async function adminAssignOrderPrinter(formData: FormData) {
       reason,
       metadata: buildAuditMetadata({
         orderNumber: order.orderNumber,
-        before: { providerId: order.providerId, printerId: order.printerId },
-        after: { providerId: printer?.providerId ?? null, printerId: printer?.id ?? null, printerName: printer?.name ?? null },
+        before: { providerId: order.providerId, printerId: order.printerId, status: order.status },
+        after: { providerId: printer?.providerId ?? null, printerId: printer?.id ?? null, printerName: printer?.name ?? null, status: nextStatus },
       }),
     });
   });
+
+  if (shouldQueue && printer) {
+    try {
+      await processQueueForPrinter(printer.id);
+    } catch (error) {
+      console.warn(`[adminAssignOrderPrinter] Queue processing failed for ${printer.id}:`, error);
+    }
+  }
 
   revalidatePath("/admin");
   revalidatePath("/admin/orders");
@@ -217,7 +307,7 @@ export async function adminUpdatePaymentStatus(formData: FormData) {
   if (!payment) throw new Error("Payment not found");
 
   let syncedOrderStatus: OrderStatus | null = null;
-  if (nextStatus === "PAID" && ["PENDING_PAYMENT", "PAYMENT_FAILED"].includes(payment.order.status)) {
+  if (nextStatus === "PAID" && ["PENDING_PAYMENT", "PAYMENT_FAILED", "CONFIRMED"].includes(payment.order.status)) {
     syncedOrderStatus = payment.order.providerId && payment.order.printerId ? "IN_QUEUE" : "CONFIRMED";
   } else if ((nextStatus === "FAILED" || nextStatus === "EXPIRED") && payment.order.status === "PENDING_PAYMENT") {
     syncedOrderStatus = "PAYMENT_FAILED";
@@ -238,9 +328,19 @@ export async function adminUpdatePaymentStatus(formData: FormData) {
     });
 
     if (syncedOrderStatus) {
+      const queuePosition = syncedOrderStatus === "IN_QUEUE" && payment.order.printerId
+        ? await tx.order.count({
+            where: {
+              printerId: payment.order.printerId,
+              status: "IN_QUEUE",
+              id: { not: payment.orderId },
+            },
+          }) + 1
+        : null;
+
       await tx.order.update({
         where: { id: payment.orderId },
-        data: { status: syncedOrderStatus },
+        data: { status: syncedOrderStatus, queuePosition },
       });
 
       await tx.orderStatusHistory.create({
@@ -270,6 +370,14 @@ export async function adminUpdatePaymentStatus(formData: FormData) {
       }),
     });
   });
+
+  if (syncedOrderStatus === "IN_QUEUE" && payment.order.printerId) {
+    try {
+      await processQueueForPrinter(payment.order.printerId);
+    } catch (error) {
+      console.warn(`[adminUpdatePaymentStatus] Queue processing failed for ${payment.order.printerId}:`, error);
+    }
+  }
 
   revalidatePath("/admin");
   revalidatePath("/admin/payments");
