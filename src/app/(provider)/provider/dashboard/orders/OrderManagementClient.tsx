@@ -5,10 +5,10 @@ import type { OrderStatus } from "@prisma/client";
 import { updateOrderStatus, updateShippingInfo, manualAssignOrder, startPrintViaPlugin, bulkAssignOrders, bulkUpdateOrderStatus, bulkAdvanceOrderStatus } from "@/actions/provider-order";
 import { DataTable } from "@/components/ui/data-table";
 import { ColumnDef } from "@tanstack/react-table";
-import { ArrowUpDown, Box, ShoppingCart, User, Truck, CheckCircle, UploadCloud, Clock, DollarSign, Printer as PrinterIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { RowSelectionState } from "@tanstack/react-table";
 import { toast } from "sonner";
+import { formatCourierLabel } from "@/lib/order-shipping";
 
 interface Order {
     id: string;
@@ -22,6 +22,7 @@ interface Order {
     shippingAddress: string;
     trackingNumber: string | null;
     courierCode: string | null;
+    courierService: string | null;
     shippedAt: Date | null;
     gcodeFileUrl: string | null;
     printer: { id: string; name: string } | null;
@@ -93,7 +94,6 @@ export function OrderManagementClient({ orders, printers }: Props) {
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
     const [showShippingModal, setShowShippingModal] = useState(false);
     const [trackingNumber, setTrackingNumber] = useState("");
-    const [courier, setCourier] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
     const [bulkPrinterId, setBulkPrinterId] = useState("");
@@ -116,13 +116,12 @@ export function OrderManagementClient({ orders, printers }: Props) {
     };
 
     const handleShipOrder = async () => {
-        if (!selectedOrder || !trackingNumber || !courier) return;
+        if (!selectedOrder || !trackingNumber.trim()) return;
         setIsLoading(true);
-        const result = await updateShippingInfo(selectedOrder.id, trackingNumber, courier);
+        const result = await updateShippingInfo(selectedOrder.id, trackingNumber);
         if (result.success) {
             setShowShippingModal(false);
             setTrackingNumber("");
-            setCourier("");
             setSelectedOrder(null);
             toast.success("Tracking info saved");
         } else {
@@ -366,7 +365,7 @@ export function OrderManagementClient({ orders, printers }: Props) {
                         )}
                         {(order.status === "SHIPPED" && order.trackingNumber) && (
                             <div className="flex flex-col">
-                                <span className="text-xs font-bold text-slate-700">{order.courierCode?.toUpperCase()}</span>
+                                <span className="text-xs font-bold text-slate-700">{formatCourierLabel(order.courierCode, order.courierService)}</span>
                                 <span className="text-[10px] text-slate-500 font-mono tracking-wide">{order.trackingNumber}</span>
                             </div>
                         )}
@@ -470,7 +469,7 @@ export function OrderManagementClient({ orders, printers }: Props) {
             o.quantity,
             o.totalPrice,
             o.printer?.name || "",
-            o.courierCode || "",
+            formatCourierLabel(o.courierCode, o.courierService),
             o.trackingNumber || "",
             o.shippingAddress || "",
             new Date(o.createdAt).toISOString(),
@@ -646,7 +645,7 @@ export function OrderManagementClient({ orders, printers }: Props) {
                 enableRowSelection
                 rowSelection={rowSelection}
                 onRowSelectionChange={setRowSelection}
-                getRowId={(row) => (row as any).id}
+                getRowId={(row) => row.id}
             />
 
             {confirmAction && (
@@ -702,19 +701,10 @@ export function OrderManagementClient({ orders, printers }: Props) {
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-1.5">Courier Service</label>
-                                <select
-                                    value={courier}
-                                    onChange={(e) => setCourier(e.target.value)}
-                                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none bg-white"
-                                >
-                                    <option value="">Select Courier</option>
-                                    <option value="jne">JNE</option>
-                                    <option value="jnt">J&T</option>
-                                    <option value="sicepat">SiCepat</option>
-                                    <option value="anteraja">AnterAja</option>
-                                    <option value="gojek">Gojek Instant</option>
-                                    <option value="grab">Grab Express</option>
-                                </select>
+                                <div className="w-full border border-slate-200 rounded-xl px-4 py-2.5 bg-slate-50 text-sm font-bold text-slate-800">
+                                    {selectedOrder ? formatCourierLabel(selectedOrder.courierCode, selectedOrder.courierService) : "Courier tersimpan"}
+                                </div>
+                                <p className="mt-1.5 text-xs text-slate-500">Courier mengikuti pilihan customer saat checkout. Provider cukup mengisi nomor resi.</p>
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-1.5">Tracking Number</label>
@@ -738,7 +728,7 @@ export function OrderManagementClient({ orders, printers }: Props) {
                                 </button>
                                 <button
                                     onClick={handleShipOrder}
-                                    disabled={!courier || !trackingNumber || isLoading}
+                                    disabled={!trackingNumber.trim() || isLoading}
                                     className="flex-1 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl font-bold hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/20 transition-all"
                                 >
                                     {isLoading ? "Loading..." : "Submit Tracking"}

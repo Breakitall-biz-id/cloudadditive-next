@@ -17,6 +17,7 @@ import { loadMatchingConfig } from "@/lib/printer-matching/runtime-config";
 import { getPrinterStartBlockReason, resolveRequestedReadiness } from "@/lib/printer-state";
 import { startPrinterOrder } from "@/lib/printer-dispatch";
 import { triggerPrinterEvent } from "@/lib/pusher";
+import { buildShipmentHistoryNote } from "@/lib/order-shipping";
 
 // ====================== HELPER FUNCTIONS ======================
 
@@ -207,15 +208,14 @@ export async function updateOrderStatus(
  */
 export async function updateShippingInfo(
     orderId: string,
-    trackingNumber: string,
-    courier: string
+    trackingNumber: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
         const provider = await getProviderFromSession();
 
         const order = await prisma.order.findFirst({
             where: { id: orderId, providerId: provider.id },
-            select: { id: true, status: true },
+            select: { id: true, status: true, courierCode: true, courierService: true },
         });
 
         if (!order) {
@@ -226,12 +226,16 @@ export async function updateShippingInfo(
             return { success: false, error: "Order is not ready to ship" };
         }
 
+        const trimmedTrackingNumber = trackingNumber.trim();
+        if (!trimmedTrackingNumber) {
+            return { success: false, error: "Tracking number is required" };
+        }
+
         await prisma.$transaction([
             prisma.order.update({
                 where: { id: orderId },
                 data: {
-                    trackingNumber,
-                    courierCode: courier,
+                    trackingNumber: trimmedTrackingNumber,
                     shippedAt: new Date(),
                     status: "SHIPPED",
                 },
@@ -240,7 +244,11 @@ export async function updateShippingInfo(
                 data: {
                     orderId,
                     status: "SHIPPED",
-                    note: `Shipped via ${courier}, tracking: ${trackingNumber}`,
+                    note: buildShipmentHistoryNote({
+                        trackingNumber: trimmedTrackingNumber,
+                        courierCode: order.courierCode,
+                        courierService: order.courierService,
+                    }),
                 },
             }),
         ]);

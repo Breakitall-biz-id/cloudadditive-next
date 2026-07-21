@@ -9,6 +9,7 @@ import { printerMatchingService, type PrinterMatchingResult } from '@/lib/printe
 import { secondsToWholeMinutes } from '@/lib/printer-matching/projection';
 import type { OrderForMatching } from '@/lib/printer-matching/types';
 import { parseOrderDueDate } from '@/lib/order-due-date';
+import { parseCourierSelection } from '@/lib/order-shipping';
 
 const snap = new Midtrans.Snap({
     isProduction: process.env.MIDTRANS_IS_PRODUCTION === 'true',
@@ -180,6 +181,7 @@ export async function createOrderWithDependencies(
     const roundedServiceFee = Math.round(data.totals.serviceFee);
     const grossAmount = roundedPrintCost + roundedShippingCost + roundedServiceFee;
     const isGcode = data.file.name.toLowerCase().endsWith('.gcode');
+    const courierSelection = parseCourierSelection(data.shipping.courier);
 
     const newOrder = await dependencies.createOrder({
         orderNumber,
@@ -204,7 +206,8 @@ export async function createOrderWithDependencies(
         shippingAddress: `${data.shipping.recipientName}, ${data.shipping.phone}\n${data.shipping.address}`,
         shippingLat: data.customerCoords.lat,
         shippingLng: data.customerCoords.lng,
-        courierCode: data.shipping.courier,
+        courierCode: courierSelection.courierCode,
+        courierService: courierSelection.courierService,
         dueDate,
         printerId: matchingResult.bestPrinter.printerId,
         providerId: matchingResult.bestPrinter.providerId,

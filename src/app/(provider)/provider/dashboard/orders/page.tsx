@@ -35,6 +35,7 @@ export default async function ProviderOrdersPage() {
             shippingAddress: true,
             trackingNumber: true,
             courierCode: true,
+            courierService: true,
             shippedAt: true,
             gcodeFileUrl: true,
             printer: {

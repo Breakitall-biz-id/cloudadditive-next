@@ -4,7 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useState, Suspense } from "react"
-import { getSession, signIn } from "next-auth/react"
+import { getSession, signIn, signOut } from "next-auth/react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { getDashboardPathForRole } from "@/lib/role-redirect"
@@ -56,8 +56,10 @@ function LoginForm() {
         }
     }
 
-    const handleGoogleSignIn = () => {
-        signIn("google", { callbackUrl: callbackUrl || "/api/auth/role-redirect" })
+    const handleGoogleSignIn = async () => {
+        setIsLoading(true)
+        await signOut({ redirect: false })
+        await signIn("google", { callbackUrl: callbackUrl || "/api/auth/role-redirect" })
     }
 
     return (
