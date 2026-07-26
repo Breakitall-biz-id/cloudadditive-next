@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { triggerPrinterEvent } from "@/lib/pusher";
 import { loadMatchingConfig } from "@/lib/printer-matching/runtime-config";
 import { getPrinterStartBlockReason } from "@/lib/printer-state";
+import { resolveDownloadUrl } from "@/lib/r2-storage";
 
 type StartPrinterOrderOptions = {
   providerId?: string;
@@ -59,26 +60,24 @@ export async function startPrinterOrder(orderId: string, options: StartPrinterOr
   const baseName = order.stlFileName?.replace(/\.stl$/i, "").replace(/\.gcode$/i, "") || `order_${orderId}`;
   const gcodeFilename = `${baseName}.gcode`;
 
+  const downloadUrl = await resolveDownloadUrl(order.gcodeFileUrl, 6 * 60 * 60);
+
   await triggerPrinterEvent(order.printerId, "job:start", {
     jobId: order.id,
-    gcodeUrl: order.gcodeFileUrl,
+    gcodeUrl: downloadUrl,
     filename: gcodeFilename,
   });
 
   await prisma.$transaction([
     prisma.order.update({
       where: { id: orderId },
-      data: {
-        status: "PRINTING",
-        printStartedAt: new Date(),
-        queuePosition: null,
-      },
+      data: { queuePosition: null },
     }),
     prisma.orderStatusHistory.create({
       data: {
         orderId,
-        status: "PRINTING",
-        note: `Print started on ${order.printer.name}${options.source ? ` via ${options.source}` : ""}`,
+        status: order.status,
+        note: `Print command sent to ${order.printer.name}${options.source ? ` via ${options.source}` : ""}. Waiting for OctoPrint confirmation.`,
         changedBy: options.changedBy,
       },
     }),
@@ -86,6 +85,6 @@ export async function startPrinterOrder(orderId: string, options: StartPrinterOr
 
   return {
     success: true,
-    message: `Print started on ${order.printer.name}`,
+    message: `Print command sent to ${order.printer.name}`,
   };
 }

@@ -133,34 +133,52 @@ export async function getSignedDownloadUrl(
 /**
  * Resolve a download URL (generate presigned URL if it's an R2 private URL)
  */
+function isCloudflareR2StorageHost(hostname: string) {
+    return hostname.endsWith(".r2.cloudflarestorage.com");
+}
+
+export function extractR2ObjectKeyFromUrl(url: string): string | null {
+    try {
+        const urlObj = new URL(url);
+        if (!isCloudflareR2StorageHost(urlObj.hostname)) return null;
+
+        const pathKey = urlObj.pathname.startsWith("/") ? urlObj.pathname.slice(1) : urlObj.pathname;
+        if (!pathKey) return null;
+
+        const accountId = process.env.R2_ACCOUNT_ID;
+        const bucketPrefix = BUCKET_NAME ? `${BUCKET_NAME}/` : "";
+
+        // Account endpoint URLs can be stored as either /bucket/key or /key.
+        if (accountId && urlObj.hostname === `${accountId}.r2.cloudflarestorage.com` && bucketPrefix && pathKey.startsWith(bucketPrefix)) {
+            return pathKey.slice(bucketPrefix.length);
+        }
+
+        return pathKey;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Resolve a download URL (generate presigned URL if it's an R2 private URL)
+ */
 export async function resolveDownloadUrl(url: string, expiresInSeconds: number = 3600): Promise<string> {
     // 1. If it's a Data URL, return as is
     if (url.startsWith("data:")) {
         return url;
     }
 
-    // 2. If it's a Public URL (Custom Domain or R2.dev), return as is
-    // Assuming PUBLIC_URL_BASE is set if the bucket is public
-    if (PUBLIC_URL_BASE && url.startsWith(PUBLIC_URL_BASE)) {
-        return url;
+    // 2. Direct Cloudflare R2 storage endpoints are private by default. Sign them
+    // even when R2_PUBLIC_URL was accidentally set to the storage endpoint.
+    const r2Key = extractR2ObjectKeyFromUrl(url);
+    if (r2Key) {
+        console.log(`[R2] Generating signed URL for key: ${r2Key}`);
+        return getSignedDownloadUrl(r2Key, expiresInSeconds);
     }
 
-    // 3. If it looks like a direct R2 URL (which is private by default), try to sign it
-    const defaultR2Domain = `${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
-    if (url.includes(defaultR2Domain)) {
-        try {
-            // Extract key from URL
-            // Format: https://bucket.account.r2.cloudflarestorage.com/KEY
-            const urlObj = new URL(url);
-            const key = urlObj.pathname.startsWith("/") ? urlObj.pathname.slice(1) : urlObj.pathname;
-
-            if (key) {
-                console.log(`[R2] Generating signed URL for key: ${key}`);
-                return getSignedDownloadUrl(key, expiresInSeconds);
-            }
-        } catch (e) {
-            console.error("[R2] Error resolving URL:", e);
-        }
+    // 3. If it's a real Public URL (custom domain or r2.dev), return as is.
+    if (PUBLIC_URL_BASE && url.startsWith(PUBLIC_URL_BASE)) {
+        return url;
     }
 
     // Fallback: return original URL

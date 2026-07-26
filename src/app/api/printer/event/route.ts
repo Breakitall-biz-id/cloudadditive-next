@@ -7,6 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { handlePrinterJobEvent } from "@/lib/printer-order-events";
 import { buildPrinterHeartbeatUpdate } from "@/lib/printer-state";
+import { triggerProviderEvent } from "@/lib/pusher";
+import { markPrinterOrderStarted } from "@/lib/printer-job-linking";
 
 interface PrinterEventPayload {
     printerId: string;
@@ -26,6 +28,7 @@ interface PrinterEventPayload {
     };
     payload?: {
         filename?: string;
+        jobId?: string;
         path?: string;
         origin?: string;
         fileSize?: number;
@@ -129,9 +132,24 @@ export async function POST(request: NextRequest) {
                 await updatePrinterStatus(printerId, "OFFLINE");
                 break;
 
+            case "PrintStarted":
+                await updateActivePrintSnapshot(printerId, printer.providerId, {
+                    state: "printing",
+                    filename: payload?.filename || payload?.path,
+                    jobId: payload?.jobId,
+                    progress: printProgress?.completion ?? payload?.progress ?? 0,
+                    timeRemaining: printProgress?.printTimeLeft ?? null,
+                });
+                break;
+
             case "PrintProgress":
-                // Log progress milestones for analytics
-                console.log(`[PrinterEvent] Progress: ${payload?.progress}% on printer ${printer.name}`);
+                await updateActivePrintSnapshot(printerId, printer.providerId, {
+                    state: "printing",
+                    filename: payload?.filename || payload?.path,
+                    jobId: payload?.jobId,
+                    progress: printProgress?.completion ?? payload?.progress ?? 0,
+                    timeRemaining: printProgress?.printTimeLeft ?? null,
+                });
                 break;
 
             default:
@@ -151,6 +169,62 @@ export async function POST(request: NextRequest) {
             { status: 500 }
         );
     }
+}
+
+
+async function updateActivePrintSnapshot(
+    printerId: string,
+    providerId: string,
+    input: {
+        state: "printing";
+        filename?: string;
+        jobId?: string | null;
+        progress: number;
+        timeRemaining?: number | null;
+    }
+) {
+    const linkedOrder = await markPrinterOrderStarted({
+        printerId,
+        jobId: input.jobId,
+        filename: input.filename,
+        timeRemaining: input.timeRemaining,
+        progress: input.progress,
+        source: "api/printer/event",
+    });
+
+    const filename = input.filename || linkedOrder?.filename || "Active print";
+    const currentJob = {
+        id: linkedOrder?.id || input.jobId || filename,
+        filename,
+        timeRemaining: input.timeRemaining ?? null,
+    };
+
+    const printer = await prisma.printer.findUnique({
+        where: { id: printerId },
+        select: { isAcceptingOrders: true },
+    });
+
+    await prisma.printer.update({
+        where: { id: printerId },
+        data: {
+            ...buildPrinterHeartbeatUpdate("PRINTING", printer?.isAcceptingOrders ?? true),
+            currentJobId: currentJob.id,
+            lastJobInfo: {
+                ...currentJob,
+                progress: input.progress,
+            },
+        },
+    });
+
+    await triggerProviderEvent(providerId, "printer:status", {
+        printerId,
+        state: input.state,
+        progress: input.progress,
+        currentJob,
+        event: "PrintProgress",
+        timestamp: new Date().toISOString(),
+        lastSeenAt: new Date().toISOString(),
+    });
 }
 
 /**

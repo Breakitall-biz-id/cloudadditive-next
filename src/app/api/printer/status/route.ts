@@ -1,9 +1,10 @@
 import { prisma } from "@/lib/prisma"
 import { triggerProviderEvent, PrinterStatus } from "@/lib/pusher"
 import { NextRequest, NextResponse } from "next/server"
-import { PrinterStatus as PrismaStatus } from "@prisma/client"
+import { PrinterStatus as PrismaStatus, Prisma } from "@prisma/client"
 import { handlePrinterJobEvent } from "@/lib/printer-order-events"
 import { buildPrinterHeartbeatUpdate } from "@/lib/printer-state"
+import { markPrinterOrderStarted } from "@/lib/printer-job-linking"
 
 // Extended PrinterStatus with event info
 interface PrinterStatusWithEvent extends PrinterStatus {
@@ -73,26 +74,49 @@ export async function POST(request: NextRequest) {
             printer.isAcceptingOrders
         )
 
-        // Update printer status in database
+        const linkedJob = nextStatus === "PRINTING"
+            ? await markPrinterOrderStarted({
+                printerId,
+                jobId: currentJob?.id,
+                filename: currentJob?.filename,
+                timeRemaining: currentJob?.timeRemaining ?? null,
+                progress: progress ?? 0,
+                source: "api/printer/status",
+            })
+            : null;
+        const effectiveCurrentJob = currentJob || (linkedJob ? {
+            id: linkedJob.id,
+            filename: linkedJob.filename,
+            timeRemaining: linkedJob.timeRemaining,
+        } : null);
+
+        const printerUpdateData: Prisma.PrinterUpdateInput = {
+            ...stateUpdate,
+            webcamUrl: webcamUrl || null,
+            // Save last known temperatures for persistence
+            lastTemperatures: temps ? {
+                hotend: temps.hotend || temps.tool0 || 0,
+                bed: temps.bed || 0,
+            } : undefined,
+        };
+
+        if (effectiveCurrentJob) {
+            printerUpdateData.currentJobId = effectiveCurrentJob.id;
+            printerUpdateData.lastJobInfo = {
+                id: effectiveCurrentJob.id,
+                filename: effectiveCurrentJob.filename,
+                progress: progress || 0,
+                timeRemaining: effectiveCurrentJob.timeRemaining || null,
+            };
+        } else if (nextStatus !== "PRINTING") {
+            printerUpdateData.currentJobId = null;
+        }
+
+        // Update printer status in database. Do not clear currentJobId/lastJobInfo when
+        // a printing heartbeat omits currentJob; some plugins send progress separately.
         await prisma.printer.update({
             where: { id: printerId },
-            data: {
-                ...stateUpdate,
-                currentJobId: currentJob?.id || null,
-                webcamUrl: webcamUrl || null,
-                // Save last known temperatures for persistence
-                lastTemperatures: temps ? {
-                    hotend: temps.hotend || temps.tool0 || 0,
-                    bed: temps.bed || 0,
-                } : undefined,
-                // Save last known job info for persistence
-                lastJobInfo: currentJob ? {
-                    id: currentJob.id,
-                    filename: currentJob.filename,
-                    progress: progress || 0,
-                    timeRemaining: currentJob.timeRemaining || null,
-                } : undefined,
-            }
+            data: printerUpdateData,
         })
 
         // Handle print completion events - update order status with shared transition rules
@@ -111,7 +135,7 @@ export async function POST(request: NextRequest) {
             state,
             progress,
             temps,
-            currentJob,
+            currentJob: effectiveCurrentJob,
             webcamUrl,
             event,
             timestamp: new Date().toISOString(),

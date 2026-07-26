@@ -76,8 +76,9 @@ export async function assignOrderToPrinter(orderId: string): Promise<{
         };
     }
 
-    // Determine new status based on whether we can print immediately
-    const newStatus = bestPrinter.canPrintImmediately ? "PRINTING" : "IN_QUEUE";
+    // Orders stay queued until OctoPrint confirms the job actually started.
+    const newStatus = "IN_QUEUE";
+    const shouldDispatchImmediately = bestPrinter.canPrintImmediately;
 
     // Update order
     await prisma.order.update({
@@ -90,8 +91,8 @@ export async function assignOrderToPrinter(orderId: string): Promise<{
         },
     });
 
-    // If printing immediately, trigger OctoPrint
-    if (newStatus === "PRINTING") {
+    // If printing immediately, send the print command and wait for OctoPrint confirmation.
+    if (shouldDispatchImmediately) {
         console.log(
             `[PrinterMatching] Starting print on ${bestPrinter.printerName} for order ${orderId}`
         );
@@ -102,11 +103,6 @@ export async function assignOrderToPrinter(orderId: string): Promise<{
             console.warn(
                 `[PrinterMatching] Auto-start failed: ${printResult.error}. Order queued instead.`
             );
-            // Update status to IN_QUEUE if auto-start failed
-            await prisma.order.update({
-                where: { id: orderId },
-                data: { status: "IN_QUEUE" },
-            });
         }
     }
 
@@ -114,7 +110,9 @@ export async function assignOrderToPrinter(orderId: string): Promise<{
         success: true,
         printerId: bestPrinter.printerId,
         status: newStatus,
-        message: `Assigned to ${bestPrinter.printerName} (${newStatus})`,
+        message: shouldDispatchImmediately
+            ? `Assigned to ${bestPrinter.printerName}; print command sent`
+            : `Assigned to ${bestPrinter.printerName} (${newStatus})`,
     };
 }
 
