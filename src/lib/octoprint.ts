@@ -15,6 +15,39 @@ interface OctoPrintPrinter {
     name: string;
 }
 
+
+function normalizeOctoPrintUrl(rawUrl: string) {
+    const parsed = new URL(rawUrl);
+    const headers: Record<string, string> = {};
+
+    if (parsed.username || parsed.password) {
+        const username = decodeURIComponent(parsed.username);
+        const password = decodeURIComponent(parsed.password);
+        headers.Authorization = `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
+        parsed.username = "";
+        parsed.password = "";
+    }
+
+    return {
+        baseUrl: parsed.toString().replace(/\/$/, ""),
+        headers,
+    };
+}
+
+function octoPrintHeaders(printer: OctoPrintPrinter, extra?: Record<string, string>) {
+    const { headers } = normalizeOctoPrintUrl(printer.octoprintUrl);
+    return {
+        ...headers,
+        "X-Api-Key": printer.octoprintApiKey,
+        ...extra,
+    };
+}
+
+function octoPrintUrl(printer: OctoPrintPrinter, path: string) {
+    const { baseUrl } = normalizeOctoPrintUrl(printer.octoprintUrl);
+    return `${baseUrl}${path}`;
+}
+
 interface UploadResult {
     success: boolean;
     filename?: string;
@@ -57,14 +90,12 @@ export async function uploadGcodeToOctoPrint(
         formData.append("print", "false"); // Don't start printing yet
 
         // Upload to OctoPrint
-        const uploadUrl = `${printer.octoprintUrl}/api/files/local`;
+        const uploadUrl = octoPrintUrl(printer, "/api/files/local");
         console.log(`[OctoPrint] Uploading ${filename} to ${printer.name}`);
 
         const response = await fetch(uploadUrl, {
             method: "POST",
-            headers: {
-                "X-Api-Key": printer.octoprintApiKey,
-            },
+            headers: octoPrintHeaders(printer),
             body: formData,
         });
 
@@ -107,14 +138,11 @@ export async function startPrintJob(
 
     try {
         // First, select the file
-        const selectUrl = `${printer.octoprintUrl}/api/files/local/${encodeURIComponent(filename)}`;
+        const selectUrl = octoPrintUrl(printer, `/api/files/local/${encodeURIComponent(filename)}`);
 
         const selectResponse = await fetch(selectUrl, {
             method: "POST",
-            headers: {
-                "X-Api-Key": printer.octoprintApiKey,
-                "Content-Type": "application/json",
-            },
+            headers: octoPrintHeaders(printer, { "Content-Type": "application/json" }),
             body: JSON.stringify({ command: "select" }),
         });
 
@@ -123,15 +151,12 @@ export async function startPrintJob(
         }
 
         // Start the print job
-        const jobUrl = `${printer.octoprintUrl}/api/job`;
+        const jobUrl = octoPrintUrl(printer, "/api/job");
         console.log(`[OctoPrint] Starting print job for ${filename} on ${printer.name}`);
 
         const response = await fetch(jobUrl, {
             method: "POST",
-            headers: {
-                "X-Api-Key": printer.octoprintApiKey,
-                "Content-Type": "application/json",
-            },
+            headers: octoPrintHeaders(printer, { "Content-Type": "application/json" }),
             body: JSON.stringify({ command: "start" }),
         });
 
@@ -170,14 +195,11 @@ export async function cancelPrintJob(
     }
 
     try {
-        const jobUrl = `${printer.octoprintUrl}/api/job`;
+        const jobUrl = octoPrintUrl(printer, "/api/job");
 
         const response = await fetch(jobUrl, {
             method: "POST",
-            headers: {
-                "X-Api-Key": printer.octoprintApiKey,
-                "Content-Type": "application/json",
-            },
+            headers: octoPrintHeaders(printer, { "Content-Type": "application/json" }),
             body: JSON.stringify({ command: "cancel" }),
         });
 
@@ -209,8 +231,8 @@ export async function getPrinterStatus(
     }
 
     try {
-        const response = await fetch(`${printer.octoprintUrl}/api/job`, {
-            headers: { "X-Api-Key": printer.octoprintApiKey },
+        const response = await fetch(octoPrintUrl(printer, "/api/job"), {
+            headers: octoPrintHeaders(printer),
         });
 
         if (!response.ok) {

@@ -3,6 +3,7 @@ import { triggerPrinterEvent } from "@/lib/pusher";
 import { loadMatchingConfig } from "@/lib/printer-matching/runtime-config";
 import { getPrinterStartBlockReason } from "@/lib/printer-state";
 import { resolveDownloadUrl } from "@/lib/r2-storage";
+import { startOrderPrint } from "@/lib/octoprint";
 
 type StartPrinterOrderOptions = {
   providerId?: string;
@@ -35,6 +36,8 @@ export async function startPrinterOrder(orderId: string, options: StartPrinterOr
           isAcceptingOrders: true,
           lastSeenAt: true,
           currentMaterialId: true,
+          octoprintUrl: true,
+          octoprintApiKey: true,
         },
       },
     },
@@ -55,6 +58,10 @@ export async function startPrinterOrder(orderId: string, options: StartPrinterOr
 
   if (!order.printer.currentMaterialId || order.printer.currentMaterialId !== order.materialId) {
     return { success: false, error: "Loaded material does not match the order" };
+  }
+
+  if (order.printer.octoprintUrl && order.printer.octoprintApiKey) {
+    return startOrderPrint(order.id, order.printerId);
   }
 
   const baseName = order.stlFileName?.replace(/\.stl$/i, "").replace(/\.gcode$/i, "") || `order_${orderId}`;
