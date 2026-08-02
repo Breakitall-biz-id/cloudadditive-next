@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { loadMatchingConfig } from "@/lib/printer-matching/runtime-config"
 import { getPrinterStartBlockReason } from "@/lib/printer-state"
+import { startPrinterOrder } from "@/lib/printer-dispatch"
 
 /**
  * Send commands to OctoPrint printer via Pusher.
@@ -72,6 +73,28 @@ export async function POST(request: NextRequest) {
         }
 
         if (command === "job:start") {
+            const orderId = payload?.orderId || payload?.jobId
+
+            if (orderId) {
+                const result = await startPrinterOrder(orderId, {
+                    providerId: printer.providerId,
+                    changedBy: printer.providerId,
+                    source: "printer-command",
+                })
+
+                if (!result.success) {
+                    return NextResponse.json(
+                        { error: result.error || "Failed to start print" },
+                        { status: 409 }
+                    )
+                }
+
+                return NextResponse.json({
+                    success: true,
+                    message: result.message || `Print command sent to ${printer.name}`
+                })
+            }
+
             const config = await loadMatchingConfig()
             const startBlockReason = getPrinterStartBlockReason(
                 printer,
@@ -86,10 +109,9 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // Send command to printer via Pusher
+        // Send non-order control commands to the plugin via Pusher.
         await triggerPrinterEvent(printerId, command, payload || {})
 
-        // Log command for debugging
         console.log(`[Printer Command] ${command} sent to printer ${printerId}`, payload)
 
         return NextResponse.json({
