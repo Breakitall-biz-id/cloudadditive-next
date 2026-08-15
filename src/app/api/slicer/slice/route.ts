@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
-const SLICER_URL = process.env.SLICER_SERVICE_URL || "http://localhost:3001"
+const SLICER_URL = (process.env.SLICER_SERVICE_URL || "http://localhost:3001").replace(/\/+$/, "")
 
 export async function POST(request: NextRequest) {
     try {

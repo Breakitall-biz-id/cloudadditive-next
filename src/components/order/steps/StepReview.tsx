@@ -10,6 +10,7 @@ interface StepReviewProps {
 
 export function StepReview({ wizard }: StepReviewProps) {
     const { state, computed, actions } = wizard
+    const sliceModel = actions.sliceModel
 
     const material = state.catalog?.materials.find(m => m.id === state.selectedMaterial)
     const quality = state.catalog?.qualities.find(q => q.id === state.selectedQuality)
@@ -22,14 +23,14 @@ export function StepReview({ wizard }: StepReviewProps) {
 
     // Trigger slicing/parsing when entering Review step
     useEffect(() => {
-        if (!state.file || state.slicedResult || state.isSlicing) return
+        if (!state.file || state.slicedResult || state.isSlicing || state.slicingError) return
 
         // For G-code files, just parse - no material/quality needed
         // For STL/OBJ files, require material and quality selection
         if (fileIsGcode || (state.selectedMaterial && state.selectedQuality)) {
-            actions.sliceModel()
+            sliceModel()
         }
-    }, [state.file, state.selectedMaterial, state.selectedQuality, state.slicedResult, state.isSlicing, actions, fileIsGcode])
+    }, [state.file, state.selectedMaterial, state.selectedQuality, state.slicedResult, state.isSlicing, state.slicingError, sliceModel, fileIsGcode])
 
     return (
         <>
@@ -42,25 +43,39 @@ export function StepReview({ wizard }: StepReviewProps) {
 
             {/* Slicing Status */}
             {state.isSlicing && (
-                <div className="bg-primary/5 border border-primary/20 rounded-xl p-6 flex items-center gap-4">
-                    <div className="animate-spin">
-                        <span className="material-symbols-outlined text-primary text-3xl">settings</span>
+                <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                    <div className="flex items-center gap-4">
+                        <div className="size-11 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                            <span className="material-symbols-outlined animate-spin text-2xl">progress_activity</span>
+                        </div>
+                        <div className="flex-1">
+                            <p className="font-bold text-slate-900">Calculating accurate pricing</p>
+                            <p className="text-sm text-slate-500">Please wait. Payment stays locked until slicing completes.</p>
+                        </div>
                     </div>
-                    <div>
-                        <p className="font-bold text-slate-900">Calculating accurate pricing...</p>
-                        <p className="text-sm text-slate-500">Slicing your model to determine print time and material usage</p>
+                    <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-full w-1/3 animate-pulse rounded-full bg-primary" />
                     </div>
                 </div>
             )}
 
             {state.slicingError && (
                 <div className="bg-red-50 border border-red-200 rounded-xl p-6">
-                    <div className="flex items-center gap-3">
-                        <span className="material-symbols-outlined text-red-500">error</span>
+                    <div className="flex items-start gap-3">
+                        <span className="material-symbols-outlined text-red-500 mt-0.5">error</span>
                         <div>
                             <p className="font-bold text-red-800">Slicing failed</p>
                             <p className="text-sm text-red-600">{state.slicingError}</p>
-                            <p className="text-sm text-slate-500 mt-1">Using estimated pricing instead</p>
+                            <p className="text-sm text-slate-500 mt-1">Payment is locked until the model is sliced successfully.</p>
+                            <button
+                                type="button"
+                                onClick={() => sliceModel({ force: true })}
+                                className="mt-3 inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                disabled={state.isSlicing}
+                            >
+                                <span className="material-symbols-outlined text-base">refresh</span>
+                                Retry slicing
+                            </button>
                         </div>
                     </div>
                 </div>

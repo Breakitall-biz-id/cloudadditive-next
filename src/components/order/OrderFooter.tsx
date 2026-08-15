@@ -8,6 +8,7 @@ interface OrderFooterProps {
 
 export function OrderFooter({ wizard }: OrderFooterProps) {
     const { state, actions, computed } = wizard
+    const reviewLocked = state.currentStep === 5 && !computed.canProceed
 
     return (
         <footer className="h-20 bg-white border-t border-slate-200 flex items-center justify-between px-16 sticky bottom-0 z-40">
@@ -27,7 +28,13 @@ export function OrderFooter({ wizard }: OrderFooterProps) {
             <div className="flex items-center gap-6">
                 <div className="flex flex-col items-end mr-4">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Next Step</span>
-                    <span className="text-sm font-bold text-slate-900">{computed.nextStepName}</span>
+                    <span className="text-sm font-bold text-slate-900">
+                        {reviewLocked
+                            ? state.isSlicing
+                                ? "Slicing model..."
+                                : "Resolve slicing first"
+                            : computed.nextStepName}
+                    </span>
                 </div>
                 <button
                     onClick={actions.goNext}

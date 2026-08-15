@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import type {
     Area,
     Provider,
@@ -9,6 +9,11 @@ import type {
 } from "@/types/order"
 import { parseGcodeFile, isGcodeFile } from "@/lib/gcode-parser"
 import { calculateOrderPricing } from "@/lib/order-pricing"
+import {
+    canEnterPaymentStep,
+    shouldAutoStartSlicing,
+    slicingAttemptKey,
+} from "@/lib/order-checkout-state"
 
 export function useOrderWizard() {
     // Step
@@ -95,6 +100,8 @@ export function useOrderWizard() {
         flavor?: string | null
         material?: string | null  // Detected material from G-code
     } | null>(null)
+    const lastSliceAttemptKeyRef = useRef<string | null>(null)
+    const activeSliceAttemptKeyRef = useRef<string | null>(null)
 
     // UI State
     const [showPreviewModal, setShowPreviewModal] = useState(false)
@@ -138,7 +145,25 @@ export function useOrderWizard() {
         setSlicedResult(null)
         setSlicingError(null)
         setModelDimensions(null)
+        lastSliceAttemptKeyRef.current = null
+        activeSliceAttemptKeyRef.current = null
     }, [])
+
+    const setSelectedMaterialWithReset = useCallback((value: string | null) => {
+        setSelectedMaterial(value)
+        if (file && !isGcodeFile(file)) {
+            setSlicedResult(null)
+            setSlicingError(null)
+        }
+    }, [file])
+
+    const setSelectedQualityWithReset = useCallback((value: string | null) => {
+        setSelectedQuality(value)
+        if (file && !isGcodeFile(file)) {
+            setSlicedResult(null)
+            setSlicingError(null)
+        }
+    }, [file])
 
     const searchNearestProvider = useCallback(async (lat: number, lng: number) => {
         setIsSearchingProvider(true)
@@ -286,11 +311,34 @@ export function useOrderWizard() {
     }, [])
 
     // Slice the STL file or parse G-code to get print time and filament usage
-    const sliceModel = useCallback(async () => {
+    const getCurrentSliceAttemptKey = useCallback(() => {
+        if (!file) return null
+        return slicingAttemptKey({
+            fileName: file.name,
+            fileSize: file.size,
+            fileLastModified: file.lastModified,
+            selectedMaterial,
+            selectedQuality,
+        })
+    }, [file, selectedMaterial, selectedQuality])
+
+    const sliceModel = useCallback(async (options?: { force?: boolean }) => {
         if (!file) {
             return
         }
 
+        const attemptKey = getCurrentSliceAttemptKey()
+        if (!attemptKey) {
+            return
+        }
+
+        if (!options?.force) {
+            if (activeSliceAttemptKeyRef.current === attemptKey) return
+            if (slicingError && lastSliceAttemptKeyRef.current === attemptKey) return
+        }
+
+        activeSliceAttemptKeyRef.current = attemptKey
+        lastSliceAttemptKeyRef.current = attemptKey
         setIsSlicing(true)
         setSlicingError(null)
         setSlicedResult(null)
@@ -355,17 +403,31 @@ export function useOrderWizard() {
             console.error("Slicing/parsing error:", error)
             setSlicingError("Failed to process file")
         } finally {
+            if (activeSliceAttemptKeyRef.current === attemptKey) {
+                activeSliceAttemptKeyRef.current = null
+            }
             setIsSlicing(false)
         }
-    }, [file, selectedMaterial, selectedQuality, catalog])
+    }, [file, selectedMaterial, selectedQuality, catalog, getCurrentSliceAttemptKey, slicingError])
 
     // Auto-parse G-code files when uploaded (so pricing is available immediately)
     useEffect(() => {
-        if (file && isGcodeFile(file) && !slicedResult && !isSlicing) {
+        const currentAttemptKey = getCurrentSliceAttemptKey()
+        const isGcode = Boolean(file && isGcodeFile(file))
+        if (isGcode && shouldAutoStartSlicing({
+            filePresent: Boolean(file),
+            isGcode,
+            selectedMaterial,
+            selectedQuality,
+            hasSlicedResult: Boolean(slicedResult),
+            isSlicing,
+            hasSlicingError: Boolean(slicingError),
+            currentAttemptKey,
+            lastAttemptKey: lastSliceAttemptKeyRef.current,
+        })) {
             sliceModel()
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [file]) // Only trigger when file changes, sliceModel handles the rest
+    }, [file, selectedMaterial, selectedQuality, slicedResult, isSlicing, slicingError, getCurrentSliceAttemptKey, sliceModel])
 
 
     // Computed Values
@@ -376,9 +438,14 @@ export function useOrderWizard() {
             case 2: return fileIsGcode || (selectedMaterial && selectedQuality)  // G-code skips material/quality
             case 3: return selectedArea && recipientName && recipientPhone && selectedPrinter !== null
             case 4: return selectedCourier !== null
+            case 5: return canEnterPaymentStep({
+                hasSlicedResult: Boolean(slicedResult),
+                isSlicing,
+                hasSlicingError: Boolean(slicingError),
+            })
             default: return true
         }
-    }, [currentStep, file, selectedMaterial, selectedQuality, selectedArea, recipientName, recipientPhone, selectedPrinter, selectedCourier])
+    }, [currentStep, file, selectedMaterial, selectedQuality, selectedArea, recipientName, recipientPhone, selectedPrinter, selectedCourier, slicedResult, isSlicing, slicingError])
 
     const fileIsGcode = file ? isGcodeFile(file) : false
     const selectedCourierData = courierRates.find(c => c.id === selectedCourier)
@@ -455,8 +522,8 @@ export function useOrderWizard() {
             goBack,
             setFile: setFileWithReset, // Use wrapper that resets related state
             setModelDimensions,
-            setSelectedMaterial,
-            setSelectedQuality,
+            setSelectedMaterial: setSelectedMaterialWithReset,
+            setSelectedQuality: setSelectedQualityWithReset,
             setSelectedColor,
             setQuantity,
             setAddressMode,

@@ -6,6 +6,7 @@ import Script from "next/script"
 import { createOrderDirect } from "@/actions/create-order"
 import { uploadFile } from "@/lib/upload-client"
 import { isGcodeFile } from "@/lib/gcode-parser"
+import { canSubmitPayment } from "@/lib/order-checkout-state"
 
 interface StepPaymentProps {
     wizard: UseOrderWizardReturn
@@ -21,8 +22,21 @@ export function StepPayment({ wizard }: StepPaymentProps) {
     const snapScriptUrl = process.env.MIDTRANS_IS_PRODUCTION === 'true'
         ? 'https://app.midtrans.com/snap/snap.js'
         : 'https://app.sandbox.midtrans.com/snap/snap.js'
+    const paymentReady = canSubmitPayment({
+        snapReady,
+        isLoading,
+        total: computed.total,
+        hasSlicedResult: Boolean(state.slicedResult),
+        isSlicing: state.isSlicing,
+        hasSlicingError: Boolean(state.slicingError),
+    })
 
     const handlePayNow = async () => {
+        if (!state.slicedResult || state.isSlicing || state.slicingError) {
+            setPaymentError("Model harus selesai di-slice sebelum transaksi dibuat.")
+            return
+        }
+
         if (!snapReady) {
             setPaymentError('Payment system is loading, please wait...')
             return
@@ -205,6 +219,15 @@ export function StepPayment({ wizard }: StepPaymentProps) {
             </div>
 
             {/* Error Message */}
+            {(!state.slicedResult || state.isSlicing || state.slicingError) && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
+                    <span className="material-symbols-outlined text-amber-600">lock</span>
+                    <p className="text-sm text-amber-700">
+                        Payment akan aktif setelah file selesai di-slice dan harga final berhasil dihitung.
+                    </p>
+                </div>
+            )}
+
             {paymentError && (
                 <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
                     <span className="material-symbols-outlined text-red-500">error</span>
@@ -215,8 +238,8 @@ export function StepPayment({ wizard }: StepPaymentProps) {
             {/* Pay Now Button */}
             <button
                 onClick={handlePayNow}
-                disabled={isLoading || !snapReady || computed.total <= 0}
-                className={`w-full py-4 rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-3 ${isLoading || !snapReady || computed.total <= 0
+                disabled={!paymentReady}
+                className={`w-full py-4 rounded-xl font-bold text-lg transition-all flex items-center justify-center gap-3 ${!paymentReady
                     ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                     : 'bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 active:scale-[0.98]'
                     }`}
@@ -230,6 +253,11 @@ export function StepPayment({ wizard }: StepPaymentProps) {
                     <>
                         <span className="material-symbols-outlined animate-pulse">hourglass_empty</span>
                         <span>Loading Payment...</span>
+                    </>
+                ) : !state.slicedResult || state.isSlicing || state.slicingError ? (
+                    <>
+                        <span className="material-symbols-outlined">lock</span>
+                        <span>Waiting for slicing</span>
                     </>
                 ) : (
                     <>
