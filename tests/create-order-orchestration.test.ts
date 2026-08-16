@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   createOrderWithDependencies,
+  normalizeSlicedGcodeUrl,
   type CreateOrderDependencies,
   type CreateOrderInput,
 } from "../src/actions/create-order";
@@ -95,6 +96,33 @@ async function main() {
   assert.equal((successful.getOrder()?.dueDate as Date).toISOString(), "2026-07-22T16:59:59.999Z");
   assert.equal(successful.getOrder()?.providerId, "provider-authoritative");
   assert.equal(successful.getOrder()?.printerId, "printer-best");
+
+  const previousSlicerUrl = process.env.SLICER_SERVICE_URL;
+  process.env.SLICER_SERVICE_URL = "http://slicer.internal:3001/";
+  assert.equal(
+    normalizeSlicedGcodeUrl("/gcode/generated.gcode"),
+    "http://slicer.internal:3001/gcode/generated.gcode"
+  );
+  const relativeGcode = dependencies();
+  const relativeGcodeResult = await createOrderWithDependencies(
+    {
+      ...input,
+      file: { url: "https://files.example/model.stl", name: "model.stl", size: 10 },
+      gcodeData: { estimatedTime: 61, filamentWeight: 4, gcodeUrl: "/gcode/generated.gcode" },
+    },
+    { userId: "user-1", email: "customer@example.com", name: "Customer" },
+    relativeGcode.deps
+  );
+  assert.equal(relativeGcodeResult.success, true);
+  assert.equal(
+    relativeGcode.getOrder()?.gcodeFileUrl,
+    "http://slicer.internal:3001/gcode/generated.gcode"
+  );
+  if (previousSlicerUrl === undefined) {
+    delete process.env.SLICER_SERVICE_URL;
+  } else {
+    process.env.SLICER_SERVICE_URL = previousSlicerUrl;
+  }
 
   const mismatch = dependencies();
   const mismatchResult = await createOrderWithDependencies(

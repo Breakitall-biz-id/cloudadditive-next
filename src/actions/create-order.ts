@@ -57,7 +57,7 @@ const CreateOrderSchema = z.object({
         estimatedTime: z.number().finite().nonnegative().optional(),
         filamentLength: z.number().finite().nonnegative().optional(),
         filamentWeight: z.number().finite().nonnegative().optional(),
-        gcodeUrl: z.string().url().optional(),
+        gcodeUrl: z.string().trim().min(1).optional(),
     }).optional(),
 });
 
@@ -121,6 +121,18 @@ const productionDependencies: CreateOrderDependencies = {
     randomSuffix: () => Math.floor(Math.random() * 10000).toString().padStart(4, '0'),
 };
 
+function slicerBaseUrl() {
+    return (process.env.SLICER_SERVICE_URL || 'http://localhost:3001').replace(/\/+$/, '');
+}
+
+export function normalizeSlicedGcodeUrl(url: string | undefined) {
+    if (!url) return null;
+    if (/^https?:\/\//i.test(url)) return url;
+    if (!url.startsWith('/')) return url;
+
+    return new URL(url, `${slicerBaseUrl()}/`).toString();
+}
+
 export async function createOrderWithDependencies(
     data: CreateOrderInput,
     customer: AuthenticatedCustomer,
@@ -180,6 +192,7 @@ export async function createOrderWithDependencies(
     const grossAmount = roundedPrintCost + roundedShippingCost + roundedServiceFee;
     const isGcode = data.file.name.toLowerCase().endsWith('.gcode');
     const courierSelection = parseCourierSelection(data.shipping.courier);
+    const slicedGcodeUrl = normalizeSlicedGcodeUrl(data.gcodeData?.gcodeUrl);
 
     const newOrder = await dependencies.createOrder({
         orderNumber,
@@ -187,7 +200,7 @@ export async function createOrderWithDependencies(
         stlFileUrl: data.file.url,
         stlFileName: data.file.name,
         stlFileSize: data.file.size,
-        gcodeFileUrl: isGcode ? data.file.url : data.gcodeData?.gcodeUrl ?? null,
+        gcodeFileUrl: isGcode ? data.file.url : slicedGcodeUrl,
         materialId: material.id,
         qualityId: quality.id,
         quantity: data.quantity,
