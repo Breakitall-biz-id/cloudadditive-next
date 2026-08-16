@@ -3,7 +3,6 @@
 import { useState } from "react"
 import type { UseOrderWizardReturn } from "@/hooks/useOrderWizard"
 import Script from "next/script"
-import { createOrderDirect } from "@/actions/create-order"
 import { uploadFile } from "@/lib/upload-client"
 import { isGcodeFile } from "@/lib/gcode-parser"
 import { canSubmitPayment } from "@/lib/order-checkout-state"
@@ -69,7 +68,7 @@ export function StepPayment({ wizard }: StepPaymentProps) {
             }
 
             // 2. Create Order with the uploaded file URL
-            const result = await createOrderDirect({
+            const orderPayload = {
                 file: {
                     url: uploadResult.url, // URL from R2
                     name: state.file?.name || (fileType === 'gcode' ? "model.gcode" : "model.stl"),
@@ -112,7 +111,14 @@ export function StepPayment({ wizard }: StepPaymentProps) {
                         ? state.slicedResult.gcodeUrl
                         : undefined,
                 } : undefined,
+            }
+
+            const createOrderResponse = await fetch("/api/orders/create", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(orderPayload),
             })
+            const result = await createOrderResponse.json()
 
             if (!result.success || !result.snapToken) {
                 throw new Error(result.error || 'Failed to create order')
