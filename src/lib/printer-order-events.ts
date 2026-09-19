@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { processQueueForPrinter } from "@/lib/printer-matching";
+import { buildPrinterHeartbeatUpdate } from "@/lib/printer-state";
 import type { OrderStatus, Prisma } from "@prisma/client";
 
 export type PrinterJobEvent = "PrintDone" | "PrintFailed" | "PrintCancelled";
@@ -57,6 +58,11 @@ export async function handlePrinterJobEvent(params: {
     const nextStatus = mapEventToOrderStatus(event);
     const note = buildEventNote(event, payload);
 
+    const printer = await prisma.printer.findUnique({
+        where: { id: printerId },
+        select: { isAcceptingOrders: true },
+    });
+
     await prisma.$transaction(async (tx) => {
         const orderUpdateData: Prisma.OrderUpdateInput = {
             status: nextStatus,
@@ -92,6 +98,16 @@ export async function handlePrinterJobEvent(params: {
                 changedBy: "SYSTEM",
             },
         });
+
+        if (event === "PrintDone" && printer) {
+            await tx.printer.update({
+                where: { id: printerId },
+                data: {
+                    ...buildPrinterHeartbeatUpdate("ONLINE", printer.isAcceptingOrders),
+                    currentJobId: null,
+                },
+            });
+        }
     });
 
     try {

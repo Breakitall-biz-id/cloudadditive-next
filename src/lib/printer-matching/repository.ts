@@ -89,7 +89,7 @@ export const prismaMatchingRepository: MatchingRepository = {
         },
         orders: {
           where: {
-            status: { in: ["IN_QUEUE", "SLICING", "PRINTING"] },
+            status: { in: ["IN_QUEUE", "SLICING", "PRINTING", "POST_PROCESSING"] },
           },
           select: {
             id: true,

@@ -39,6 +39,19 @@ async function getProviderFromSession() {
     return provider;
 }
 
+async function getPrinterAssignmentBlockReason(printer: {
+    status: string;
+    isAcceptingOrders: boolean;
+    lastSeenAt: Date | string | null;
+}) {
+    const config = await loadMatchingConfig();
+    return getPrinterStartBlockReason(
+        printer,
+        new Date(),
+        config.heartbeatTimeoutSeconds
+    );
+}
+
 // ====================== ORDER ACTIONS ======================
 
 /**
@@ -182,8 +195,11 @@ export async function updateOrderStatus(
             return updated;
         });
 
-        // When an order leaves PRINTING state, try to start next queue item on this printer
-        if (order.status === 'PRINTING' && newStatus !== 'PRINTING' && updatedOrder.printerId) {
+        // Queue is intentionally blocked during POST_PROCESSING until the provider clears the bed.
+        // When the blocker is cleared (for example POST_PROCESSING -> PACKING), try the next job.
+        const wasPrinterBlocking = order.status === 'PRINTING' || order.status === 'POST_PROCESSING';
+        const stillPrinterBlocking = newStatus === 'PRINTING' || newStatus === 'POST_PROCESSING';
+        if (wasPrinterBlocking && !stillPrinterBlocking && updatedOrder.printerId) {
             try {
                 await processQueueForPrinter(updatedOrder.printerId);
                 console.log(`[updateOrderStatus] Queue processed for printer ${updatedOrder.printerId}`);
@@ -347,6 +363,7 @@ export async function manualAssignOrder(
             }),
             prisma.printer.findFirst({
                 where: { id: printerId, providerId: provider.id },
+                select: { id: true, status: true, isAcceptingOrders: true, lastSeenAt: true },
             }),
         ]);
 
@@ -355,6 +372,11 @@ export async function manualAssignOrder(
         }
         if (!printer) {
             return { success: false, error: "Printer not found" };
+        }
+
+        const assignmentBlockReason = await getPrinterAssignmentBlockReason(printer);
+        if (assignmentBlockReason) {
+            return { success: false, error: `Printer belum siap: ${assignmentBlockReason}` };
         }
 
         await prisma.order.update({
@@ -385,11 +407,16 @@ export async function bulkAssignOrders(
 
         const printer = await prisma.printer.findFirst({
             where: { id: printerId, providerId: provider.id },
-            select: { id: true },
+            select: { id: true, status: true, isAcceptingOrders: true, lastSeenAt: true },
         });
 
         if (!printer) {
             return { success: false, error: "Printer not found" };
+        }
+
+        const assignmentBlockReason = await getPrinterAssignmentBlockReason(printer);
+        if (assignmentBlockReason) {
+            return { success: false, error: `Printer belum siap: ${assignmentBlockReason}` };
         }
 
         const orders = await prisma.order.findMany({
@@ -459,6 +486,7 @@ export async function bulkUpdateOrderStatus(
 
         const failed: Array<{ id: string; error: string }> = [];
         let updated = 0;
+        const printersToProcess = new Set<string>();
 
         for (const order of orders) {
             const allowed = validTransitions[order.status] || [];
@@ -488,7 +516,22 @@ export async function bulkUpdateOrderStatus(
                 });
             });
 
+            const wasPrinterBlocking = order.status === 'PRINTING' || order.status === 'POST_PROCESSING';
+            const stillPrinterBlocking = newStatus === 'PRINTING' || newStatus === 'POST_PROCESSING';
+            if (wasPrinterBlocking && !stillPrinterBlocking && order.printerId) {
+                printersToProcess.add(order.printerId);
+            }
+
             updated += 1;
+        }
+
+        for (const printerId of printersToProcess) {
+            try {
+                await processQueueForPrinter(printerId);
+                console.log(`[bulkUpdateOrderStatus] Queue processed for printer ${printerId}`);
+            } catch (err) {
+                console.error('[bulkUpdateOrderStatus] Queue processing error:', err);
+            }
         }
 
         revalidatePath("/provider/dashboard/orders");
@@ -532,7 +575,7 @@ export async function bulkAdvanceOrderStatus(
                 id: { in: orderIds },
                 providerId: provider.id,
             },
-            select: { id: true, status: true },
+            select: { id: true, status: true, printerId: true },
         });
 
         const skipped: Array<{ id: string; reason: string }> = [];
@@ -567,6 +610,17 @@ export async function bulkAdvanceOrderStatus(
                     },
                 });
             });
+
+            const wasPrinterBlocking = order.status === 'PRINTING' || order.status === 'POST_PROCESSING';
+            const stillPrinterBlocking = nextStatus === 'PRINTING' || nextStatus === 'POST_PROCESSING';
+            if (wasPrinterBlocking && !stillPrinterBlocking && order.printerId) {
+                try {
+                    await processQueueForPrinter(order.printerId);
+                    console.log(`[bulkAdvanceOrderStatus] Queue processed for printer ${order.printerId}`);
+                } catch (err) {
+                    console.error('[bulkAdvanceOrderStatus] Queue processing error:', err);
+                }
+            }
 
             updated += 1;
         }
@@ -606,6 +660,22 @@ export async function startNextQueuedPrint(printerId: string): Promise<{ success
         );
         if (startBlockReason) {
             return { success: false, error: startBlockReason };
+        }
+
+        const blockingPostProcessingOrder = await prisma.order.findFirst({
+            where: {
+                providerId: provider.id,
+                printerId,
+                status: "POST_PROCESSING",
+            },
+            select: { id: true },
+        });
+
+        if (blockingPostProcessingOrder) {
+            return {
+                success: false,
+                error: "Printer belum siap: selesaikan post-processing order sebelumnya dan ubah status ke Packing sebelum start job berikutnya.",
+            };
         }
 
         const nextOrder = await prisma.order.findFirst({

@@ -68,7 +68,7 @@ export function PrinterCard({ printer, liveStatus }: PrinterCardProps) {
     // Use live status if available and not stale, otherwise check if offline
     const rawStatus = liveStatus?.state || printer.status
     const currentStatus = isStale ? "offline" : rawStatus
-    const isOnline = !isStale && liveStatus !== null && liveStatus !== undefined
+    const isOnline = currentStatus !== "offline"
     const hasWebcam = !!liveStatus?.webcamUrl
 
     // Format time remaining

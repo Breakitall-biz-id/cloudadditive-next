@@ -57,6 +57,9 @@ export function usePrinterStatus({ providerId, onStatusUpdate }: UsePrinterStatu
         if (!providerId) return
 
         const pusher = getPusherClient()
+        if (!pusher) {
+            return
+        }
         const channelName = `private-provider-${providerId}`
 
         console.log(`[Pusher] Subscribing to channel: ${channelName}`)
@@ -113,14 +116,7 @@ export function usePrinterStatus({ providerId, onStatusUpdate }: UsePrinterStatu
  */
 export function useSinglePrinterStatus(providerId: string, printerId: string) {
     const { getStatus, isConnected } = usePrinterStatus({ providerId })
-    const [status, setStatus] = useState<PrinterStatusData | null>(null)
-
-    useEffect(() => {
-        const printerStatus = getStatus(printerId)
-        if (printerStatus) {
-            setStatus(printerStatus)
-        }
-    }, [getStatus, printerId])
+    const status = getStatus(printerId)
 
     return { status, isConnected }
 }

@@ -4,8 +4,21 @@ import Pusher from "pusher-js"
 
 // Client-side Pusher instance (singleton)
 let pusherClient: Pusher | null = null
+let warnedAboutMissingConfig = false
 
-export function getPusherClient(): Pusher {
+export function isPusherClientConfigured() {
+    return Boolean(process.env.NEXT_PUBLIC_PUSHER_KEY && process.env.NEXT_PUBLIC_PUSHER_CLUSTER)
+}
+
+export function getPusherClient(): Pusher | null {
+    if (!isPusherClientConfigured()) {
+        if (!warnedAboutMissingConfig) {
+            console.warn("[Pusher] Client configuration is missing. Realtime printer updates are disabled.")
+            warnedAboutMissingConfig = true
+        }
+        return null
+    }
+
     if (!pusherClient) {
         // Enable Pusher logging in development
         if (process.env.NODE_ENV === "development") {
@@ -39,10 +52,12 @@ export function getPusherClient(): Pusher {
 // Hook-friendly channel subscription
 export function subscribeToChannel(channelName: string) {
     const pusher = getPusherClient()
+    if (!pusher) return null
     return pusher.subscribe(channelName)
 }
 
 export function unsubscribeFromChannel(channelName: string) {
     const pusher = getPusherClient()
+    if (!pusher) return
     pusher.unsubscribe(channelName)
 }

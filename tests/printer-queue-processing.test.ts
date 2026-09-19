@@ -88,6 +88,25 @@ assert.deepEqual(
   { processed: 0, started: 0 }
 );
 
+let blockedQueueLookups = 0;
+const postProcessingBlocked: QueueProcessingDependencies = {
+  getPrinter: async () => printer(),
+  hasBlockingPostProcessingOrder: async () => true,
+  findNextOrder: async () => {
+    blockedQueueLookups += 1;
+    return { id: "order-1", materialId: "pla" };
+  },
+  startOrder: async () => ({ success: true }),
+};
+assert.deepEqual(
+  await processQueueForPrinterWithDependencies("printer-1", postProcessingBlocked, {
+    now: () => now,
+    heartbeatTimeoutSeconds: 120,
+  }),
+  { processed: 0, started: 0 }
+);
+assert.equal(blockedQueueLookups, 0);
+
 const ready = await run(printer());
 assert.deepEqual(ready.result, { processed: 1, started: 1 });
 assert.equal(ready.starts, 1);

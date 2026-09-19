@@ -1,17 +1,90 @@
 "use client"
 
-import { useState } from "react"
-import { PlusCircle, Wifi, WifiOff } from "lucide-react"
+import { useState, type ComponentProps } from "react"
+import { AlertTriangle, CheckCircle2, Info, PlusCircle, ShieldCheck } from "lucide-react"
 import { PrinterCard } from "./PrinterCard"
 import { AddPrinterModal } from "./AddPrinterModal"
 import { usePrinterStatus } from "@/hooks/usePrinterStatus"
 import { PrinterStats } from "./PrinterStats"
 import { PrinterControls } from "./PrinterControls"
+import type { PrinterReadinessState } from "@/lib/provider-printer-readiness"
+
+type FleetPrinter = ComponentProps<typeof PrinterCard>["printer"] & {
+    readiness?: PrinterReadinessState
+}
 
 interface PrinterFleetProps {
-    initialPrinters: any[]
+    initialPrinters: FleetPrinter[]
     isVerified: boolean
     providerId: string
+}
+
+function PrinterReadinessBanner({ printers }: { printers: FleetPrinter[] }) {
+    const readiness = printers.map((printer) => printer.readiness).filter(Boolean) as PrinterReadinessState[]
+    if (readiness.length === 0) return null
+
+    const accepting = readiness.filter((item) => item.canAcceptOrders).length
+    const autoStart = readiness.filter((item) => item.canAutoStart).length
+    const blocked = readiness.filter((item) => !item.canAutoStart && item.severity !== "ready").length
+    const primaryIssue = readiness.find((item) => item.severity === "blocked" || item.severity === "offline")
+        ?? readiness.find((item) => item.severity === "busy")
+        ?? readiness.find((item) => item.canAutoStart)
+
+    const tone = primaryIssue?.canAutoStart
+        ? "border-emerald-200 bg-emerald-50/80 text-emerald-950"
+        : primaryIssue?.severity === "busy"
+            ? "border-amber-200 bg-amber-50/80 text-amber-950"
+            : "border-slate-200 bg-white text-slate-950"
+
+    const Icon = primaryIssue?.canAutoStart ? CheckCircle2 : primaryIssue?.severity === "busy" ? Info : AlertTriangle
+
+    return (
+        <section className={`rounded-2xl border p-5 shadow-sm ${tone}`}>
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex gap-4">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-black/5">
+                        <Icon className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-extrabold tracking-tight text-slate-950">Current printer readiness</p>
+                            <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 ring-1 ring-black/5">
+                                Live queue gate
+                            </span>
+                        </div>
+                        <p className="mt-2 text-sm font-semibold text-slate-800">
+                            {primaryIssue?.printerName}: {primaryIssue?.summary}
+                        </p>
+                        <p className="mt-1 max-w-4xl text-sm leading-6 text-slate-600">
+                            {primaryIssue?.instruction}
+                        </p>
+                    </div>
+                </div>
+
+                <div className="grid min-w-full grid-cols-3 gap-2 sm:min-w-[420px]">
+                    <div className="rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-black/5">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">Accepting</p>
+                        <p className="mt-1 text-2xl font-black text-slate-950">{accepting}/{readiness.length}</p>
+                    </div>
+                    <div className="rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-black/5">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">Auto-start</p>
+                        <p className="mt-1 text-2xl font-black text-primary">{autoStart}/{readiness.length}</p>
+                    </div>
+                    <div className="rounded-xl bg-white px-4 py-3 shadow-sm ring-1 ring-black/5">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">Need action</p>
+                        <p className="mt-1 text-2xl font-black text-amber-600">{blocked}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div className="mt-4 flex items-start gap-3 rounded-xl bg-white/75 px-4 py-3 text-xs leading-5 text-slate-600 ring-1 ring-black/5">
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <p>
+                    Auto-Accepting berarti printer boleh menerima order dari matching system. Auto-start hanya jalan kalau printer online, heartbeat fresh, material cocok, G-code tersedia, dan tidak ada order sebelumnya di <span className="font-bold text-slate-800">POST_PROCESSING</span>. Setelah hasil print diangkat dan status diubah ke <span className="font-bold text-slate-800">PACKING</span>, queue berikutnya boleh diproses.
+                </p>
+            </div>
+        </section>
+    )
 }
 
 export function PrinterFleet({ initialPrinters, isVerified, providerId }: PrinterFleetProps) {
@@ -87,6 +160,8 @@ export function PrinterFleet({ initialPrinters, isVerified, providerId }: Printe
 
             {/* Stats Overview */}
             <PrinterStats printers={printers} getEffectiveStatus={getEffectiveStatus} />
+
+            <PrinterReadinessBanner printers={printers} />
 
             {/* Filters */}
             <PrinterControls

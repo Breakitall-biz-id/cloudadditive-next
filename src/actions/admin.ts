@@ -16,7 +16,7 @@ import {
 } from "@/lib/admin-action-utils";
 import type { AdminActionType, OrderStatus, PaymentStatus, PrinterStatus, Prisma, Role } from "@prisma/client";
 import { loadMatchingConfig } from "@/lib/printer-matching/runtime-config";
-import { resolvePrinterStateUpdate, validateAcceptingOrders } from "@/lib/printer-state";
+import { getPrinterStartBlockReason, resolvePrinterStateUpdate, validateAcceptingOrders } from "@/lib/printer-state";
 import { processQueueForPrinter } from "@/lib/printer-matching";
 import { decideAdminOrderStatusUpdate, shouldQueueAfterAdminAssignment } from "@/lib/admin-order-workflow";
 
@@ -219,10 +219,15 @@ export async function adminAssignOrderPrinter(formData: FormData) {
   const printer = printerId
     ? await prisma.printer.findUnique({
         where: { id: printerId },
-        select: { id: true, name: true, providerId: true },
+        select: { id: true, name: true, providerId: true, status: true, isAcceptingOrders: true, lastSeenAt: true },
       })
     : null;
   if (printerId && !printer) throw new Error("Printer not found");
+  if (printer) {
+    const config = await loadMatchingConfig();
+    const blockReason = getPrinterStartBlockReason(printer, new Date(), config.heartbeatTimeoutSeconds);
+    if (blockReason) throw new Error(`Printer belum siap: ${blockReason}`);
+  }
 
   const shouldQueue = Boolean(printer && shouldQueueAfterAdminAssignment(order.status, order.payment?.status));
   const nextStatus: OrderStatus = shouldQueue

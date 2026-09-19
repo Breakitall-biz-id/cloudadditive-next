@@ -22,6 +22,7 @@ export type QueueProcessingPrinter = {
 
 export type QueueProcessingDependencies = {
     getPrinter(printerId: string): Promise<QueueProcessingPrinter | null>;
+    hasBlockingPostProcessingOrder?(printerId: string): Promise<boolean>;
     findNextOrder(
         printerId: string,
         materialId: string
@@ -139,6 +140,16 @@ export async function processQueueForPrinter(printerId: string): Promise<{
                     lastSeenAt: true,
                 },
             }),
+            hasBlockingPostProcessingOrder: async (id) => {
+                const blockingOrder = await prisma.order.findFirst({
+                    where: {
+                        printerId: id,
+                        status: "POST_PROCESSING",
+                    },
+                    select: { id: true },
+                });
+                return Boolean(blockingOrder);
+            },
             findNextOrder: (id, materialId) => prisma.order.findFirst({
                 where: {
                     printerId: id,
@@ -171,6 +182,10 @@ export async function processQueueForPrinterWithDependencies(
         return { processed: 0, started: 0 };
     }
 
+    if (dependencies.hasBlockingPostProcessingOrder && await dependencies.hasBlockingPostProcessingOrder(printerId)) {
+        return { processed: 0, started: 0 };
+    }
+
     const order = await dependencies.findNextOrder(
         printerId,
         printer.currentMaterialId
@@ -186,6 +201,10 @@ export async function processQueueForPrinterWithDependencies(
         latestPrinter.currentMaterialId !== order.materialId ||
         getPrinterStartBlockReason(latestPrinter, nowFactory(), timeoutSeconds)
     ) {
+        return { processed: 1, started: 0 };
+    }
+
+    if (dependencies.hasBlockingPostProcessingOrder && await dependencies.hasBlockingPostProcessingOrder(printerId)) {
         return { processed: 1, started: 0 };
     }
 

@@ -57,6 +57,22 @@ export async function startPrinterOrder(orderId: string, options: StartPrinterOr
     return { success: false, error: "Loaded material does not match the order" };
   }
 
+  const blockingPostProcessingOrder = await prisma.order.findFirst({
+    where: {
+      printerId: order.printerId,
+      status: "POST_PROCESSING",
+      id: { not: order.id },
+    },
+    select: { id: true },
+  });
+
+  if (blockingPostProcessingOrder) {
+    return {
+      success: false,
+      error: "Printer belum siap: selesaikan post-processing order sebelumnya dan ubah status ke Packing sebelum start job berikutnya.",
+    };
+  }
+
   const baseName = order.stlFileName?.replace(/\.stl$/i, "").replace(/\.gcode$/i, "") || `order_${orderId}`;
   const gcodeFilename = `${baseName}.gcode`;
 
