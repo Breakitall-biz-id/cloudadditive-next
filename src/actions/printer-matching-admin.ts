@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
+import { ZodError } from "zod";
 import { prisma } from "@/lib/prisma";
 import { matchingConfigToSettingsData } from "@/lib/printer-matching/config";
 import { prismaMatchingRepository } from "@/lib/printer-matching/repository";
@@ -82,7 +83,9 @@ export async function runMatchingSimulation(input: unknown) {
   } catch (error) {
     return {
       success: false as const,
-      error: error instanceof Error ? error.message : "Simulation failed",
+      error: error instanceof ZodError
+        ? error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ")
+        : error instanceof Error ? error.message : "Simulation failed",
     };
   }
 }

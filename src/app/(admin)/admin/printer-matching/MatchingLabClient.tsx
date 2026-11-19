@@ -12,6 +12,8 @@ import type { SimulationBatchResult } from "@/lib/printer-matching/simulation";
 import { ScenarioEditor } from "./ScenarioEditor";
 import { SimulationResults } from "./SimulationResults";
 import type { MatchingLabRow, MatchingOption } from "./types";
+import { defaultLabOptions, labOptionsSchema, type LabOptions } from "@/lib/printer-matching/lab-config";
+import { LabAlgorithmControls } from "./LabAlgorithmControls";
 
 type Props = {
   materials: MatchingOption[];
@@ -52,6 +54,7 @@ export function MatchingLabClient({ materials, qualities }: Props) {
   const [results, setResults] = useState<SimulationBatchResult | null>(null);
   const [mapsLoaded, setMapsLoaded] = useState(canInitializeGoogleMaps);
   const [isPending, startTransition] = useTransition();
+  const [labOptions, setLabOptions] = useState<LabOptions>(() => defaultLabOptions());
   const analysisCache = useRef(new Map<string, { dimensions?: { width: number; height: number; depth: number }; estimatedMinutes: number; qualityMode: "sliced" | "informational"; detectedMaterialId?: string }>());
 
   useEffect(() => {
@@ -140,6 +143,9 @@ export function MatchingLabClient({ materials, qualities }: Props) {
     setResults(null);
     startTransition(async () => {
       try {
+        const validation = labOptionsSchema.safeParse(labOptions);
+        if (!validation.success) throw new Error(validation.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; "));
+        const validatedOptions = validation.data;
         const analyzedRows: MatchingLabRow[] = [];
         for (const row of rows) {
           setAnalyzingId(row.id);
@@ -147,7 +153,7 @@ export function MatchingLabClient({ materials, qualities }: Props) {
         }
         setAnalyzingId(null);
         setRows(analyzedRows);
-        const response = await runMatchingSimulation(analyzedRows.map((row) => ({
+        const response = await runMatchingSimulation({ lab: validatedOptions, scenarios: analyzedRows.map((row) => ({
           id: row.id,
           label: row.label,
           materialId: row.materialId,
@@ -158,7 +164,10 @@ export function MatchingLabClient({ materials, qualities }: Props) {
           shippingLng: row.longitude,
           estimatedPrintTime: row.estimatedMinutes,
           quantity: row.quantity,
-        })));
+          arrivalMinutes: row.arrivalMinutes ?? 0,
+          deadlineMinutes: row.deadlineMinutes ?? 1440,
+          priority: row.priority ?? 3,
+        })) });
         if (!response.success) throw new Error(response.error);
         setResults(response.data);
       } catch (error) {
@@ -170,6 +179,7 @@ export function MatchingLabClient({ materials, qualities }: Props) {
 
   return (
     <div className="space-y-6">
+      <LabAlgorithmControls value={labOptions} disabled={isPending} onChange={(options) => { setLabOptions(options); setResults(null); }} />
       {process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? (
         <Script
           id="matching-lab-google-maps"
@@ -181,7 +191,7 @@ export function MatchingLabClient({ materials, qualities }: Props) {
         />
       ) : null}
 
-      <ScenarioEditor rows={rows} materials={materials} qualities={qualities} files={files} fileMode={fileMode} sharedFileName={sharedFileName} analyzingId={analyzingId} errors={errors} mapsLoaded={mapsLoaded} onRowsChange={setRows} onFilesChange={(nextFiles) => { setFiles(nextFiles); setSharedFileName(nextFiles[0]?.name ?? ""); setResults(null); }} onFileModeChange={setFileMode} onSharedFileNameChange={setSharedFileName} onAnalyze={(row) => void analyzeSingle(row)} />
+      <ScenarioEditor researchMode={labOptions.algorithm !== "SAVED"} rows={rows} materials={materials} qualities={qualities} files={files} fileMode={fileMode} sharedFileName={sharedFileName} analyzingId={analyzingId} errors={errors} mapsLoaded={mapsLoaded} onRowsChange={setRows} onFilesChange={(nextFiles) => { setFiles(nextFiles); setSharedFileName(nextFiles[0]?.name ?? ""); setResults(null); }} onFileModeChange={setFileMode} onSharedFileNameChange={setSharedFileName} onAnalyze={(row) => void analyzeSingle(row)} />
 
       <Card className="gap-0 rounded-[0.85rem] border-[var(--admin-line)] bg-white py-0 shadow-[var(--admin-shadow-card)]">
         <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">

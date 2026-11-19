@@ -115,7 +115,9 @@ assert.equal(
     isAcceptingOrders: true,
     preprocessingTime: 10,
     status: "ONLINE",
-    provider: { latitude: 0, longitude: 0, city: "Test City" },
+    provider: { latitude: 0, longitude: 0, city: "Test City", businessName: "Test Provider", province: "Test Province", isVerified: true },
+    lastSeenAt: new Date("2026-07-19T00:00:00Z"),
+    materialIds: ["pla"],
     orders: [
       {
         id: "order-1",
@@ -146,7 +148,9 @@ assert.equal(
     isAcceptingOrders: true,
     preprocessingTime: 0,
     status: "ONLINE",
-    provider: { latitude: 0, longitude: 0, city: "Test City" },
+    provider: { latitude: 0, longitude: 0, city: "Test City", businessName: "Test Provider", province: "Test Province", isVerified: true },
+    lastSeenAt: new Date("2026-07-19T00:00:00Z"),
+    materialIds: ["pla"],
     orders: [
       {
         id: "order-zero-buffer",

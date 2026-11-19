@@ -17,6 +17,9 @@ export type MatchingCsvRow = {
   fileName: string;
   qualityId: string;
   qualityMode: "sliced" | "informational";
+  arrivalMinutes?: number;
+  deadlineMinutes?: number;
+  priority?: number;
 };
 
 export type MatchingCsvParseResult = {
@@ -161,6 +164,9 @@ export function parseMatchingCsv(
         fileName,
         qualityId,
         qualityMode: fileExtension === ".gcode" ? "informational" : "sliced",
+        arrivalMinutes: row.arrival_minutes?.trim() ? parseFiniteNumber(row.arrival_minutes, "Arrival minutes", { min: 0 }) : 0,
+        deadlineMinutes: row.deadline_minutes?.trim() ? parseFiniteNumber(row.deadline_minutes, "Deadline minutes", { min: 0 }) : 1440,
+        priority: row.priority?.trim() ? parseFiniteNumber(row.priority, "Priority", { min: 1, max: 3, integer: true }) : 3,
       });
     } catch (error) {
       rowErrors.push({

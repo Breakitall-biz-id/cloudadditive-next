@@ -4,9 +4,13 @@ import type { MatchingConfig } from "./config";
 import { projectQueue, type QueueProjection, type VirtualQueueWorkload } from "./projection";
 import { scoreEligiblePrinter, sortByScore } from "./scoring";
 import type { MatchedPrinter, OrderForMatching, PrinterCandidate, PrinterScore } from "./types";
+import type { ResearchAlgorithm, LabOptions } from "./lab-config";
 
 export type MatchingScenario = OrderForMatching & {
   label: string;
+  arrivalMinutes?: number;
+  deadlineMinutes?: number;
+  priority?: number;
 };
 
 export type SimulationMatchedResult = {
@@ -22,13 +26,15 @@ export type SimulationMatchedResult = {
   queueAfterJobs: number;
   expectedStartOffsetMinutes: number;
   expectedFinishOffsetMinutes: number;
+  expectedDeliveryOffsetMinutes?: number;
+  tardinessMinutes?: number;
 };
 
 export type SimulationRejectedResult = {
   success: false;
   scenarioId: string;
   label: string;
-  rejectionSummary: Partial<Record<AvailabilityRejectionCode, number>>;
+  rejectionSummary: Partial<Record<AvailabilityRejectionCode | "SIMULATION_HORIZON", number>>;
 };
 
 export type SimulationResult = SimulationMatchedResult | SimulationRejectedResult;
@@ -39,7 +45,15 @@ export type SimulationBatchResult = {
   rejected: number;
   distribution: Record<string, number>;
   projectedMakespanMinutes: number;
-  algorithm: "WEIGHTED_SCORE" | "NSGA2";
+  algorithm: "WEIGHTED_SCORE" | "NSGA2" | ResearchAlgorithm;
+  research?: {
+    options: LabOptions;
+    snapshot: { capturedAt: string; config: MatchingConfig; scenarios: MatchingScenario[]; printers: PrinterCandidate[] };
+    objectives: { distanceKm: number; loadStdMinutes: number; weightedLatenessMinutes: number; violations: number };
+    ahp?: { weights: number[]; consistencyRatio: number; topsisScore: number; selectionPoolSize: number };
+    paretoFront?: Array<{ violations: number; distanceKm: number; loadStdMinutes: number; weightedLatenessMinutes: number }>;
+    convergence?: Array<{ iteration: number; violations: number; distance: number; loadStd: number; weightedLateness: number }>;
+  };
   nsga2?: {
     paretoFrontSize: number;
     populationSize: number;

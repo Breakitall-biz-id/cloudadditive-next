@@ -8,6 +8,8 @@ import {
 import type { PrinterCandidate } from "./types";
 import { simulateMatchingBatch } from "./simulation";
 import { simulateMatchingBatchNsga2 } from "./nsga2";
+import { labOptionsSchema } from "./lab-config";
+import { simulateResearchBatch } from "./lab-simulation";
 
 type ConfigFormSource = FormData | Record<string, FormDataEntryValue | string>;
 
@@ -28,6 +30,9 @@ const simulationScenarioSchema = z.object({
   estimatedPrintTime: z.number().positive().nullable(),
   quantity: z.number().int().positive(),
   dueDate: z.union([z.string(), z.date()]).nullable().optional(),
+  arrivalMinutes: z.number().finite().min(0).max(525600).optional(),
+  deadlineMinutes: z.number().finite().min(0).max(525600).optional(),
+  priority: z.number().int().min(1).max(3).optional(),
 });
 
 function readField(source: ConfigFormSource, name: string): string {
@@ -70,14 +75,24 @@ export async function runMatchingSimulationWithRepository(
   repository: SimulationReadRepository,
   now = new Date()
 ) {
-  const scenarios = z.array(simulationScenarioSchema).min(1).max(100).parse(input);
+  // Existing array callers retain their saved-rule behavior. Research options never
+  // flow through saveMatchingConfig or the production matching service.
+  const request = Array.isArray(input) ? { scenarios: input } : input;
+  const parsed = z.object({
+    scenarios: z.array(simulationScenarioSchema).min(1).max(100)
+      .refine((rows) => new Set(rows.map((row) => row.id)).size === rows.length, "Scenario IDs must be unique"),
+    lab: labOptionsSchema.optional(),
+  }).strict().parse(request);
+  const { scenarios } = parsed;
   const [settings, printers] = await Promise.all([
     repository.getMatchingSettings(),
     repository.findPrinterCandidates(),
   ]);
 
   const config = matchingConfigFromSettings(settings);
-  const data = config.algorithmMode === "NSGA2"
+  const data = parsed.lab && parsed.lab.algorithm !== "SAVED"
+    ? simulateResearchBatch({ scenarios, printers, config, now, fallbackMinutes: 60, options: parsed.lab })
+    : config.algorithmMode === "NSGA2"
     ? simulateMatchingBatchNsga2({
       scenarios,
       printers,

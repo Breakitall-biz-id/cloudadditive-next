@@ -17,6 +17,7 @@ type Props = {
   analyzingId: string | null;
   errors: string[];
   mapsLoaded: boolean;
+  researchMode?: boolean;
   onRowsChange(rows: MatchingLabRow[]): void;
   onFilesChange(files: File[]): void;
   onFileModeChange(mode: MatchingCsvFileMode): void;
@@ -48,6 +49,9 @@ export function ScenarioEditor(props: Props) {
       estimatedMinutes: base?.estimatedMinutes ?? 60,
       fileName: base?.fileName ?? "",
       qualityMode: base?.qualityMode ?? "sliced",
+      arrivalMinutes: base?.arrivalMinutes ?? 0,
+      deadlineMinutes: base?.deadlineMinutes ?? 1440,
+      priority: base?.priority ?? 3,
     }]);
   }
 
@@ -77,6 +81,9 @@ export function ScenarioEditor(props: Props) {
       estimatedMinutes: row.estimatedMinutes,
       fileName: row.fileName,
       qualityMode: row.qualityMode,
+      arrivalMinutes: row.arrivalMinutes,
+      deadlineMinutes: row.deadlineMinutes,
+      priority: row.priority,
     })));
   }
 
@@ -146,6 +153,11 @@ export function ScenarioEditor(props: Props) {
                   <AdminField label="Width mm"><NumberInput value={row.width} onChange={(value) => updateRow(row.id, { width: value })} /></AdminField>
                   <AdminField label="Depth mm"><NumberInput value={row.depth} onChange={(value) => updateRow(row.id, { depth: value })} /></AdminField>
                   <AdminField label="Height mm"><NumberInput value={row.height} onChange={(value) => updateRow(row.id, { height: value })} /></AdminField>
+                  {props.researchMode && <>
+                    <AdminField label="Arrival (+ minutes)"><NumberInput value={row.arrivalMinutes ?? 0} onChange={(value) => updateRow(row.id, { arrivalMinutes: value })} /></AdminField>
+                    <AdminField label="Deadline (+ minutes)"><NumberInput value={row.deadlineMinutes ?? 1440} onChange={(value) => updateRow(row.id, { deadlineMinutes: value })} /></AdminField>
+                    <AdminField label="Priority"><AdminSelect value={String(row.priority ?? 3)} onValueChange={(value) => updateRow(row.id, { priority: Number(value) })} options={[{ value: "1", label: "High (weight 3)" }, { value: "2", label: "Medium (weight 2)" }, { value: "3", label: "Normal (weight 1)" }]} /></AdminField>
+                  </>}
                 </div>
                 <div className="mt-4 border-t border-[var(--admin-line-soft)] pt-4">
                   <ScenarioLocationPicker
@@ -163,7 +175,7 @@ export function ScenarioEditor(props: Props) {
           );
         })}
       </div>
-      <AdminButton type="button" variant="outline" onClick={() => addRow()} className="border-[var(--admin-line)] bg-white text-[#34413c]"><Plus className="h-4 w-4" /> Add scenario</AdminButton>
+      <AdminButton type="button" variant="outline" onClick={() => addRow()} disabled={props.rows.length >= 100} className="border-[var(--admin-line)] bg-white text-[#34413c]"><Plus className="h-4 w-4" /> Add scenario</AdminButton>
     </div>
   );
 }

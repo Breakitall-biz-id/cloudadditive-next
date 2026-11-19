@@ -23,6 +23,8 @@ const printer: PrinterCandidate = {
   lastSeenAt: new Date("2026-07-19T00:00:00.000Z"),
   materialIds: ["pla"],
   provider: {
+    businessName: "Test Provider",
+    province: "Test Province",
     latitude: 0,
     longitude: 0,
     city: "Test City",
@@ -40,6 +42,7 @@ const order: OrderForMatching = {
   shippingLat: 0,
   shippingLng: 0,
   estimatedPrintTime: 60,
+  quantity: 1,
 };
 
 const config: MatchingConfig = {

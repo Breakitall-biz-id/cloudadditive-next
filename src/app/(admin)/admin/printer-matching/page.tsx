@@ -26,7 +26,7 @@ export default async function PrinterMatchingLabPage() {
     <AdminWorkspace>
       <AdminHeroCard
         title="Printer Matching Lab"
-        description="Tune routing rules, test scenarios, and inspect printer assignment results."
+        description="Compare algorithms, test scenarios, and inspect simulated printer assignments."
         action={
           <Button className="h-11 rounded-lg bg-[#090914] px-5 text-sm font-medium text-white shadow-[var(--admin-shadow-control)] hover:bg-[#202032]">
             <Beaker className="size-4" strokeWidth={1.8} />
@@ -43,7 +43,8 @@ export default async function PrinterMatchingLabPage() {
         <StatCard label="Heartbeat window" value={`${config.heartbeatTimeoutSeconds}s`} caption={`${config.maxDistanceKm} km max`} />
       </section>
 
-      <section>
+      <details>
+        <summary className="cursor-pointer text-sm font-medium text-slate-600">Production routing settings (separate from lab experiments)</summary>
         <DataCard title="Routing configuration" action={<span className="rounded-full bg-[#f2f3f5] px-3 py-1.5 text-xs font-semibold text-[#5c616b]">{config.algorithmMode === "NSGA2" ? "NSGA-II" : "Weighted score"}</span>}>
           <MatchingConfigForm initial={{
             algorithmMode: config.algorithmMode,
@@ -63,7 +64,7 @@ export default async function PrinterMatchingLabPage() {
             nsga2DecisionPolicy: config.nsga2.decisionPolicy,
           }} />
         </DataCard>
-      </section>
+      </details>
 
       <DataCard title="Scenario batch">
         {materials.length > 0 && qualities.length > 0 ? (

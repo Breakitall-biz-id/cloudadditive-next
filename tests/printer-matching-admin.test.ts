@@ -42,7 +42,7 @@ assert.deepEqual(parseMatchingConfigFormData(valid), {
   },
 });
 assert.throws(
-  () => parseMatchingConfigFormData({ ...valid, distanceWeight: "26" }),
+  () => parseMatchingConfigFormData({ ...valid, algorithmMode: "WEIGHTED_SCORE", distanceWeight: "26" }),
   /sum to 100/
 );
 assert.throws(

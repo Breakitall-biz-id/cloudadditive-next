@@ -15,4 +15,7 @@ export type MatchingLabRow = {
   estimatedMinutes: number;
   fileName: string;
   qualityMode: "sliced" | "informational";
+  arrivalMinutes?: number;
+  deadlineMinutes?: number;
+  priority?: number;
 };

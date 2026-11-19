@@ -23,6 +23,8 @@ const basePrinter: PrinterCandidate = {
   lastSeenAt: now,
   materialIds: ["pla", "petg"],
   provider: {
+    businessName: "Test Provider",
+    province: "Test Province",
     latitude: -7.75,
     longitude: 110.4,
     city: "Sleman",
@@ -40,6 +42,7 @@ const baseOrder: OrderForMatching = {
   shippingLat: -7.75,
   shippingLng: 110.4,
   estimatedPrintTime: 60,
+  quantity: 1,
 };
 
 const baseProjection: QueueProjection = {
